@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
+  <meta name="theme-color" content="#0a2240" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Recon" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Atlantic Subaru — Recon</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-mark">★</span>
+      <span class="brand-name"><span class="brand-full">Atlantic Subaru · </span>Recon</span>
+    </div>
+    <div class="topbar-right">
+      <select id="lang-select" aria-label="Language">
+        <option value="en">EN</option>
+        <option value="es">ES</option>
+      </select>
+      <button id="logout-btn" class="ghost-on-dark" hidden aria-label="Sign out" title="Sign out">⎋</button>
+    </div>
+  </header>
+
+  <main id="app"></main>
+
+  <template id="tpl-login">
+    <section class="card login">
+      <h1 data-i18n="login.title">Sign in</h1>
+      <p class="muted" data-i18n="login.hint">Enter the manager or cleaning team password.</p>
+      <form id="login-form">
+        <input type="password" id="login-password" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password" required />
+        <button type="submit" class="primary" data-i18n="login.submit">Sign in</button>
+      </form>
+      <p id="login-error" class="error" hidden></p>
+    </section>
+  </template>
+
+  <template id="tpl-dashboard">
+    <section class="dashboard">
+      <div class="filters">
+        <div class="seg" role="tablist" id="status-filter">
+          <button data-status="pending" class="active" data-i18n="filter.pending">Pending</button>
+          <button data-status="completed" data-i18n="filter.completed">Completed</button>
+          <button data-status="all" data-i18n="filter.all">All</button>
+        </div>
+        <div class="seg" role="tablist" id="category-filter">
+          <button data-category="all" class="active" data-i18n="filter.allCategories">All</button>
+          <button data-category="delivery" data-i18n="category.delivery">Delivery</button>
+          <button data-category="trade_auction" data-i18n="category.trade_auction">Trade Auction</button>
+          <button data-category="service" data-i18n="category.service">Service</button>
+        </div>
+      </div>
+
+      <div id="manager-actions" class="manager-only" hidden>
+        <button id="add-car-btn" class="primary block">
+          <span>+ </span><span data-i18n="dashboard.addCar">Add vehicle</span>
+        </button>
+      </div>
+
+      <div id="car-list" class="car-list"></div>
+      <p id="empty-state" class="muted center" hidden data-i18n="dashboard.empty">No vehicles to show.</p>
+    </section>
+  </template>
+
+  <template id="tpl-add-car">
+    <section class="card">
+      <button class="back" data-back>&larr; <span data-i18n="common.back">Back</span></button>
+      <h2 data-i18n="addCar.title">New vehicle</h2>
+      <form id="add-car-form">
+        <label>
+          <span data-i18n="addCar.stock">Stock number</span>
+          <input id="stock-number" type="text" required autocapitalize="characters" autocomplete="off" inputmode="text" enterkeyhint="next" />
+        </label>
+        <fieldset class="cat-picker">
+          <legend data-i18n="addCar.category">Category</legend>
+          <label class="cat-card">
+            <input type="radio" name="category" value="delivery" required />
+            <span class="cat-tile delivery">
+              <span class="cat-icon">🚗</span>
+              <span class="cat-label" data-i18n="category.delivery">Delivery</span>
+            </span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="category" value="trade_auction" />
+            <span class="cat-tile trade_auction">
+              <span class="cat-icon">🏷️</span>
+              <span class="cat-label" data-i18n="category.trade_auction">Trade Auction</span>
+            </span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="category" value="service" />
+            <span class="cat-tile service">
+              <span class="cat-icon">🔧</span>
+              <span class="cat-label" data-i18n="category.service">Service</span>
+            </span>
+          </label>
+        </fieldset>
+        <button type="submit" class="primary block big" data-i18n="addCar.submit">Create</button>
+        <p id="add-car-error" class="error" hidden></p>
+      </form>
+    </section>
+  </template>
+
+  <template id="tpl-car-detail">
+    <section class="detail">
+      <button class="back" data-back>&larr; <span data-i18n="common.back">Back</span></button>
+      <div class="car-header">
+        <div class="car-header-main">
+          <div class="stock-big" id="car-stock"></div>
+          <div class="meta">
+            <span class="badge" id="car-category"></span>
+            <span class="status-pill" id="car-status"></span>
+          </div>
+        </div>
+        <button id="delete-car" class="icon-btn danger manager-only" hidden aria-label="Delete" title="Delete">🗑</button>
+      </div>
+
+      <div id="photos" class="photos"></div>
+      <p id="no-photos" class="muted center" hidden data-i18n="detail.noPhotos">No photos yet.</p>
+
+      <div class="manager-only" id="upload-zone" hidden>
+        <label class="upload">
+          <input id="photo-input" type="file" accept="image/*" capture="environment" />
+          <span class="upload-cta">
+            <span class="cam" aria-hidden="true">📷</span>
+            <span data-i18n="detail.addPhoto">Add attention zone photo</span>
+          </span>
+        </label>
+        <div id="upload-preview" hidden>
+          <img id="preview-img" alt="" />
+          <textarea id="photo-note" rows="3" data-i18n-placeholder="detail.notePlaceholder" placeholder="Describe what to clean / pay attention to..."></textarea>
+          <div class="row">
+            <button id="cancel-upload" class="ghost" data-i18n="common.cancel">Cancel</button>
+            <button id="confirm-upload" class="primary" data-i18n="detail.upload">Upload</button>
+          </div>
+          <div id="upload-progress" class="progress" hidden>
+            <div class="progress-bar"></div>
+          </div>
+          <p id="upload-error" class="error" hidden></p>
+        </div>
+      </div>
+    </section>
+    <div class="sticky-action" id="sticky-action" hidden>
+      <button id="complete-btn" class="primary block big" hidden data-i18n="detail.markDone">Mark cleaning as done</button>
+      <button id="reopen-btn" class="ghost block manager-only" hidden data-i18n="detail.reopen">Reopen</button>
+    </div>
+  </template>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <button id="lightbox-close" class="lightbox-close" aria-label="Close">✕</button>
+    <div id="lightbox-stage" class="lightbox-stage">
+      <img id="lightbox-img" alt="" />
+    </div>
+    <div id="lightbox-caption" class="lightbox-caption"></div>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
