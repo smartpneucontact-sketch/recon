@@ -53,8 +53,13 @@ const I18N = {
     'detail.removePhoto': 'Remove',
     'detail.removePhotoConfirm': 'Remove this photo?',
     'detail.noNote': 'No note',
-    'detail.completedOn': 'Completed',
-    'detail.createdOn': 'Added',
+    'detail.orderedAt': 'Ordered',
+    'detail.finishedAt': 'Finished',
+    'detail.duration': 'Turnaround',
+
+    'time.min': 'min',
+    'time.h': 'h',
+    'time.d': 'd',
   },
   es: {
     'login.title': 'Iniciar sesión',
@@ -110,8 +115,13 @@ const I18N = {
     'detail.removePhoto': 'Quitar',
     'detail.removePhotoConfirm': '¿Quitar esta foto?',
     'detail.noNote': 'Sin nota',
-    'detail.completedOn': 'Terminado',
-    'detail.createdOn': 'Añadido',
+    'detail.orderedAt': 'Pedido',
+    'detail.finishedAt': 'Terminado',
+    'detail.duration': 'Tiempo total',
+
+    'time.min': 'min',
+    'time.h': 'h',
+    'time.d': 'd',
   }
 };
 

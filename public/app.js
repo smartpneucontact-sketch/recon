@@ -67,14 +67,41 @@ function applyRoleVisibility() {
   });
 }
 
-function fmtDate(s) {
-  if (!s) return '';
+function parseDate(s) {
+  if (!s) return null;
   const d = new Date(s.replace(' ', 'T') + 'Z');
-  if (isNaN(d)) return s;
+  return isNaN(d) ? null : d;
+}
+function fmtDate(s) {
+  const d = parseDate(s);
+  if (!d) return '';
   return d.toLocaleString(i18n.lang === 'es' ? 'es' : 'en', {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
+}
+function fmtDateShort(s) {
+  const d = parseDate(s);
+  if (!d) return '';
+  return d.toLocaleDateString(i18n.lang === 'es' ? 'es' : 'en', {
+    month: 'short', day: 'numeric'
+  });
+}
+function fmtDuration(ms) {
+  const totalMinutes = Math.max(1, Math.round(ms / 60000));
+  if (totalMinutes < 60) return `${totalMinutes} ${i18n.t('time.min')}`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours < 24) {
+    return minutes
+      ? `${hours} ${i18n.t('time.h')} ${minutes} ${i18n.t('time.min')}`
+      : `${hours} ${i18n.t('time.h')}`;
+  }
+  const days = Math.floor(hours / 24);
+  const remH = hours % 24;
+  return remH
+    ? `${days} ${i18n.t('time.d')} ${remH} ${i18n.t('time.h')}`
+    : `${days} ${i18n.t('time.d')}`;
 }
 
 /* ---------- LOGIN ---------- */
@@ -159,12 +186,16 @@ function renderCarRow(c) {
   const photoLabel = c.photo_count === 0
     ? i18n.t('dashboard.noPhotos')
     : `${c.photo_count} ${c.photo_count === 1 ? i18n.t('dashboard.photo') : i18n.t('dashboard.photos')}`;
+  const dateLabel = c.status === 'completed' && c.completed_at
+    ? `✓ ${fmtDateShort(c.completed_at)}`
+    : `📅 ${fmtDateShort(c.created_at)}`;
   row.innerHTML = `
     <div class="left">
       <div class="stock">${escapeHtml(c.stock_number)}</div>
       <div class="sub">
         <span class="badge ${c.category}">${i18n.t('category.' + c.category)}</span>
         <span class="photo-count">📷 ${photoLabel}</span>
+        <span class="row-date">${dateLabel}</span>
       </div>
     </div>
     <div class="right">
@@ -216,6 +247,17 @@ async function showCarDetail(id) {
     const stEl = document.getElementById('car-status');
     stEl.textContent = i18n.t('status.' + car.status);
     stEl.classList.add(car.status);
+
+    const ts = document.getElementById('car-timestamps');
+    const rows = [
+      { label: i18n.t('detail.orderedAt'), value: fmtDate(car.created_at) }
+    ];
+    if (car.completed_at) {
+      rows.push({ label: i18n.t('detail.finishedAt'), value: fmtDate(car.completed_at) });
+      const ms = parseDate(car.completed_at) - parseDate(car.created_at);
+      if (ms > 0) rows.push({ label: i18n.t('detail.duration'), value: fmtDuration(ms) });
+    }
+    ts.innerHTML = rows.map(r => `<div><dt>${escapeHtml(r.label)}</dt><dd>${escapeHtml(r.value)}</dd></div>`).join('');
 
     renderPhotos(photos);
 
