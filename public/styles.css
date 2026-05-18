@@ -430,38 +430,57 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   font-size: 13px;
 }
 
-/* Drag handle */
-.drag-handle {
-  background: transparent;
-  color: var(--muted);
-  border: none;
-  font-size: 18px;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
-  border-radius: 6px;
-  cursor: grab;
+/* Pin badge for explicit "Next in line" ordering */
+.pin-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  letter-spacing: -3px;
+  background: var(--primary);
+  color: white;
+  font-size: 11px;
   font-weight: 700;
-  touch-action: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-right: 6px;
+  letter-spacing: 0.3px;
 }
-.drag-handle:hover { background: var(--surface-2); color: var(--text); }
-.drag-handle:active { cursor: grabbing; }
+.stock-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
 
-.sortable-ghost {
-  opacity: 0.4;
-  background: var(--bg) !important;
+/* Next-in-line editor on detail view (manager only) */
+.next-edit {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
 }
-.sortable-chosen { box-shadow: var(--shadow-lg); }
-.sortable-drag {
-  cursor: grabbing;
-  transform: rotate(1.5deg);
-  box-shadow: var(--shadow-lg);
+.next-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
 }
+.next-edit-label > span:first-child {
+  font-weight: 600;
+  font-size: 14px;
+}
+.next-edit-label small { font-size: 12px; }
+.next-edit-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.next-edit-row input {
+  flex: 1;
+  min-width: 0;
+}
+.next-edit-row button { flex-shrink: 0; min-width: 90px; }
+#next-in-line-msg.muted { color: var(--success); }
+#next-in-line-msg.error { color: var(--danger); }
 
 /* Car list (kept for board rows) */
 .car-list { display: flex; flex-direction: column; gap: 10px; }

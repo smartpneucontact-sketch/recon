@@ -3,8 +3,6 @@ const state = {
   view: 'login',
   carId: null,
   filter: { status: 'pending' },
-  sortables: [],
-  dragging: false,
   uploadOpen: false,
   liveSource: null,
   refreshTimer: null
@@ -69,7 +67,6 @@ function scheduleLiveRefresh(payload) {
   }, 350);
 }
 function applyLiveRefresh(payload) {
-  if (state.dragging) return; // never yank the list out from under a drag
   if (state.view === 'dashboard') {
     loadCars();
     return;
@@ -262,7 +259,6 @@ function showSignup() {
 async function showDashboard() {
   state.view = 'dashboard';
   state.carId = null;
-  destroySortables();
   updateUserChip();
   render('tpl-dashboard');
 
@@ -279,11 +275,6 @@ async function showDashboard() {
   if (addBtn) addBtn.addEventListener('click', showAddCar);
 
   await loadCars();
-}
-
-function destroySortables() {
-  for (const s of state.sortables) { try { s.destroy(); } catch {} }
-  state.sortables = [];
 }
 
 async function loadCars() {
@@ -304,7 +295,6 @@ async function loadCars() {
 }
 
 function renderBoards(cars) {
-  destroySortables();
   const grouped = {};
   for (const cat of CATEGORIES) grouped[cat] = [];
   for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
@@ -323,34 +313,6 @@ function renderBoards(cars) {
       empty.hidden = true;
       for (const c of items) list.appendChild(renderCarRow(c));
     }
-    if (state.user && state.user.role === 'manager' && typeof Sortable !== 'undefined') {
-      const sortable = Sortable.create(list, {
-        handle: '.drag-handle',
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        dragClass: 'sortable-drag',
-        forceFallback: true,
-        fallbackTolerance: 4,
-        onStart: () => { state.dragging = true; },
-        onEnd: () => {
-          state.dragging = false;
-          persistOrder(cat, list);
-        }
-      });
-      state.sortables.push(sortable);
-    }
-  }
-}
-
-async function persistOrder(category, listEl) {
-  const orderedIds = [...listEl.querySelectorAll('[data-car-id]')].map(el => parseInt(el.dataset.carId, 10));
-  try {
-    await api('POST', '/api/cars/reorder', { category, orderedIds });
-  } catch (ex) {
-    if (ex.status === 401) return showLogin();
-    alert(i18n.t('dashboard.reorderError'));
-    loadCars();
   }
 }
 
@@ -363,10 +325,15 @@ function renderCarRow(c) {
     : `${c.photo_count} ${c.photo_count === 1 ? i18n.t('dashboard.photo') : i18n.t('dashboard.photos')}`;
   const scheduleText = fmtSchedule(c.scheduled_at);
   const completedText = c.completed_at ? fmtDateShort(c.completed_at) : '';
-  const isManager = state.user && state.user.role === 'manager';
+  const pinBadge = (c.next_in_line != null)
+    ? `<span class="pin-badge" title="${escapeAttr(i18n.t('detail.nextInLine'))}">#${escapeHtml(String(c.next_in_line))}</span>`
+    : '';
   row.innerHTML = `
     <div class="left">
-      <div class="stock">${escapeHtml(c.stock_number)}</div>
+      <div class="stock-line">
+        ${pinBadge}
+        <span class="stock">${escapeHtml(c.stock_number)}</span>
+      </div>
       ${scheduleText ? `<div class="schedule-line">📅 ${escapeHtml(scheduleText)}</div>` : ''}
       <div class="sub">
         <span class="photo-count">📷 ${escapeHtml(photoLabel)}</span>
@@ -375,13 +342,9 @@ function renderCarRow(c) {
     </div>
     <div class="right">
       <span class="status-pill ${c.status}">${i18n.t('status.' + c.status)}</span>
-      ${isManager ? `<button class="drag-handle" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button>` : ''}
     </div>
   `;
-  row.addEventListener('click', (e) => {
-    if (e.target.closest('.drag-handle')) return;
-    showCarDetail(c.id);
-  });
+  row.addEventListener('click', () => showCarDetail(c.id));
   return row;
 }
 
@@ -632,6 +595,7 @@ async function showCarDetail(id) {
       });
     }
     if (canWrite) setupUpload(id);
+    if (isManager) setupNextInLine(car);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     $app.innerHTML = `<p class="error">${ex.message}</p>`;
@@ -696,6 +660,41 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
+
+function setupNextInLine(car) {
+  const input = document.getElementById('next-in-line-input');
+  const btn = document.getElementById('save-next-in-line');
+  const msg = document.getElementById('next-in-line-msg');
+  if (!input || !btn) return;
+  input.value = car.next_in_line == null ? '' : String(car.next_in_line);
+  msg.hidden = true;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    msg.hidden = true;
+    const raw = input.value.trim();
+    const payload = { next_in_line: raw === '' ? null : parseInt(raw, 10) };
+    if (raw !== '' && (!Number.isInteger(payload.next_in_line) || payload.next_in_line < 1)) {
+      msg.textContent = i18n.t('detail.nextInLineInvalid');
+      msg.className = 'error';
+      msg.hidden = false;
+      btn.disabled = false;
+      return;
+    }
+    try {
+      await api('PATCH', `/api/cars/${car.id}`, payload);
+      msg.textContent = i18n.t('detail.nextInLineSaved');
+      msg.className = 'muted';
+      msg.hidden = false;
+    } catch (ex) {
+      if (ex.status === 401) return showLogin();
+      msg.textContent = ex.message || i18n.t('detail.nextInLineError');
+      msg.className = 'error';
+      msg.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
 function setupUpload(carId) {
   const input = document.getElementById('photo-input');

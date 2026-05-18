@@ -229,7 +229,12 @@ app.get('/api/cars', requireAuth, (req, res) => {
     LEFT JOIN users cu ON cu.id = c.created_by_user_id
     LEFT JOIN users du ON du.id = c.completed_by_user_id
     ${where}
-    ORDER BY c.category ASC, c.status ASC, c.position ASC, c.scheduled_at ASC
+    ORDER BY c.category ASC,
+             c.status ASC,
+             (c.next_in_line IS NULL) ASC,
+             c.next_in_line ASC,
+             c.scheduled_at ASC,
+             c.id ASC
   `).all(...params);
   res.json({ cars });
 });
@@ -258,60 +263,31 @@ app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
   if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {
     return res.status(400).json({ error: 'scheduled_at_required' });
   }
-
-  // Slot the new car into the pending queue by scheduled_at:
-  // find the first pending car in the same category scheduled later than this one,
-  // shift it (and everything after it) down, and insert at its old position.
-  const insertId = db.transaction(() => {
-    const later = db.prepare(`
-      SELECT position FROM cars
-      WHERE category = ? AND status = 'pending' AND scheduled_at > ?
-      ORDER BY position ASC LIMIT 1
-    `).get(category, scheduled_at);
-    let newPosition;
-    if (later) {
-      db.prepare(`
-        UPDATE cars SET position = position + 10
-        WHERE category = ? AND status = 'pending' AND position >= ?
-      `).run(category, later.position);
-      newPosition = later.position;
-    } else {
-      const maxPos = db.prepare(
-        "SELECT COALESCE(MAX(position), 0) AS m FROM cars WHERE category = ? AND status = 'pending'"
-      ).get(category).m;
-      newPosition = maxPos + 10;
-    }
-    const info = db.prepare(`
-      INSERT INTO cars (stock_number, category, scheduled_at, position, created_by_user_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(stock_number.trim().toUpperCase(), category, scheduled_at, newPosition, req.user.id);
-    return info.lastInsertRowid;
-  })();
-  const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(insertId);
+  const info = db.prepare(`
+    INSERT INTO cars (stock_number, category, scheduled_at, created_by_user_id)
+    VALUES (?, ?, ?, ?)
+  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, req.user.id);
+  const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(info.lastInsertRowid);
   broadcast('car', { id: car.id, category: car.category });
   res.status(201).json({ car });
 });
 
-app.post('/api/cars/reorder', requireRole('manager'), (req, res) => {
-  const { category, orderedIds } = req.body || {};
-  if (!['delivery', 'trade_auction', 'service'].includes(category)) {
-    return res.status(400).json({ error: 'invalid_category' });
+app.patch('/api/cars/:id', requireRole('manager'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const target = db.prepare('SELECT id, category FROM cars WHERE id = ?').get(id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+  if (!('next_in_line' in req.body)) return res.status(400).json({ error: 'no_changes' });
+  let val = req.body.next_in_line;
+  if (val === null || val === '' || val === undefined) {
+    val = null;
+  } else {
+    val = parseInt(val, 10);
+    if (!Number.isInteger(val) || val < 1) return res.status(400).json({ error: 'invalid_next_in_line' });
   }
-  if (!Array.isArray(orderedIds) || orderedIds.some(id => !Number.isInteger(id))) {
-    return res.status(400).json({ error: 'invalid_ordered_ids' });
-  }
-  const existing = db.prepare('SELECT id FROM cars WHERE category = ?').all(category).map(r => r.id);
-  const existingSet = new Set(existing);
-  if (orderedIds.some(id => !existingSet.has(id))) {
-    return res.status(400).json({ error: 'unknown_car_id' });
-  }
-  const upd = db.prepare('UPDATE cars SET position = ? WHERE id = ? AND category = ?');
-  const tx = db.transaction(() => {
-    orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id, category));
-  });
-  tx();
-  broadcast('cars', { category });
-  res.json({ ok: true });
+  db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?').run(val, id);
+  const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
+  broadcast('car', { id, category: target.category });
+  res.json({ car: updated });
 });
 
 app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {
@@ -372,14 +348,6 @@ app.use('/uploads', requireAuth, express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true
 }));
-
-app.get('/vendor/sortable.min.js', (_req, res) => {
-  res.type('application/javascript');
-  res.sendFile(path.join(__dirname, 'node_modules', 'sortablejs', 'Sortable.min.js'), {
-    maxAge: '30d',
-    immutable: true
-  });
-});
 
 app.use(express.static(path.join(__dirname, 'public')));
 

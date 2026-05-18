@@ -49,6 +49,7 @@ const I18N = {
     'common.loading': 'Loading…',
     'common.logout': 'Sign out',
     'common.logoutConfirm': 'Sign out?',
+    'common.save': 'Save',
 
     'filter.pending': 'Pending',
     'filter.completed': 'Completed',
@@ -98,6 +99,12 @@ const I18N = {
     'detail.finishedAt': 'Finished',
     'detail.finishedBy': 'Finished by',
     'detail.duration': 'Turnaround',
+    'detail.nextInLine': 'Next in line',
+    'detail.nextInLineHint': 'Leave blank to use the schedule order.',
+    'detail.nextInLineInvalid': 'Enter a whole number (1 or higher), or leave blank.',
+    'detail.nextInLineSaved': 'Saved.',
+    'detail.nextInLineError': 'Could not save.',
+    'detail.auto': 'auto',
 
     'time.min': 'min',
     'time.h': 'h',
@@ -153,6 +160,7 @@ const I18N = {
     'common.loading': 'Cargando…',
     'common.logout': 'Cerrar sesión',
     'common.logoutConfirm': '¿Cerrar sesión?',
+    'common.save': 'Guardar',
 
     'filter.pending': 'Pendientes',
     'filter.completed': 'Terminados',
@@ -202,6 +210,12 @@ const I18N = {
     'detail.finishedAt': 'Terminado',
     'detail.finishedBy': 'Terminado por',
     'detail.duration': 'Tiempo total',
+    'detail.nextInLine': 'Próximo en línea',
+    'detail.nextInLineHint': 'Déjalo en blanco para usar el orden programado.',
+    'detail.nextInLineInvalid': 'Introduce un número entero (1 o mayor), o déjalo en blanco.',
+    'detail.nextInLineSaved': 'Guardado.',
+    'detail.nextInLineError': 'No se pudo guardar.',
+    'detail.auto': 'auto',
 
     'time.min': 'min',
     'time.h': 'h',

@@ -74,4 +74,9 @@ if (!columnExists('cars', 'position')) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_position ON cars(category, position)');
 
+if (!columnExists('cars', 'next_in_line')) {
+  db.exec('ALTER TABLE cars ADD COLUMN next_in_line INTEGER');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_nextinline ON cars(category, next_in_line)');
+
 module.exports = { db, DATA_DIR, UPLOADS_DIR };
