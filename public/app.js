@@ -5,7 +5,9 @@ const state = {
   filter: { status: 'pending' },
   uploadOpen: false,
   liveSource: null,
-  refreshTimer: null
+  refreshTimer: null,
+  dragging: false,
+  sortable: null
 };
 const CATEGORIES = ['delivery', 'trade_auction', 'service'];
 
@@ -67,6 +69,7 @@ function scheduleLiveRefresh(payload) {
   }, 350);
 }
 function applyLiveRefresh(payload) {
+  if (state.dragging) return;
   if (state.view === 'dashboard') {
     loadCars();
     return;
@@ -295,9 +298,12 @@ async function loadCars() {
 }
 
 function renderBoards(cars) {
+  if (state.sortable) { try { state.sortable.destroy(); } catch {} state.sortable = null; }
   const grouped = { __next: cars.slice() };
   for (const cat of CATEGORIES) grouped[cat] = [];
   for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
+
+  const isManager = state.user && state.user.role === 'manager';
 
   for (const board of document.querySelectorAll('.board')) {
     const cat = board.dataset.category;
@@ -312,13 +318,42 @@ function renderBoards(cars) {
     } else {
       empty.hidden = true;
       const showCategory = (cat === '__next');
-      for (const c of items) list.appendChild(renderCarRow(c, { showCategory }));
+      const showDrag = (cat === '__next') && isManager;
+      for (const c of items) list.appendChild(renderCarRow(c, { showCategory, showDrag }));
     }
+    if (cat === '__next' && isManager && items.length && typeof Sortable !== 'undefined') {
+      state.sortable = Sortable.create(list, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        forceFallback: true,
+        fallbackTolerance: 4,
+        onStart: () => { state.dragging = true; },
+        onEnd: () => {
+          state.dragging = false;
+          persistReorder(list);
+        }
+      });
+    }
+  }
+}
+
+async function persistReorder(listEl) {
+  const orderedIds = [...listEl.querySelectorAll('[data-car-id]')].map(el => parseInt(el.dataset.carId, 10));
+  try {
+    await api('POST', '/api/cars/reorder', { orderedIds });
+  } catch (ex) {
+    if (ex.status === 401) return showLogin();
+    alert(i18n.t('dashboard.reorderError'));
+    loadCars();
   }
 }
 
 function renderCarRow(c, opts) {
   const showCategory = !!(opts && opts.showCategory);
+  const showDrag = !!(opts && opts.showDrag);
   const row = document.createElement('div');
   row.className = 'car-row';
   row.dataset.carId = c.id;
@@ -348,9 +383,13 @@ function renderCarRow(c, opts) {
     </div>
     <div class="right">
       <span class="status-pill ${c.status}">${i18n.t('status.' + c.status)}</span>
+      ${showDrag ? `<button class="drag-handle" aria-label="${escapeAttr(i18n.t('dashboard.dragToReorder'))}" title="${escapeAttr(i18n.t('dashboard.dragToReorder'))}">⋮⋮</button>` : ''}
     </div>
   `;
-  row.addEventListener('click', () => showCarDetail(c.id));
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.drag-handle')) return;
+    showCarDetail(c.id);
+  });
   return row;
 }
 

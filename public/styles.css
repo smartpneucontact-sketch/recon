@@ -162,6 +162,8 @@ main {
   padding: 16px;
   padding-bottom: calc(16px + var(--safe-bottom));
 }
+/* Dashboard view needs full width for the 4-column board */
+main:has(.dashboard) { max-width: 1600px; }
 /* When sticky action bar is shown, add space at the bottom */
 main:has(.sticky-action:not([hidden])) {
   padding-bottom: calc(112px + var(--safe-bottom));
@@ -449,6 +451,36 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .board-empty {
   margin: 8px 0;
   font-size: 13px;
+}
+
+/* Drag handle for reordering (Next-in-line column, manager only) */
+.drag-handle {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  font-size: 16px;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -3px;
+  font-weight: 700;
+  touch-action: none;
+}
+.drag-handle:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
+.drag-handle:active { cursor: grabbing; }
+
+.sortable-ghost { opacity: 0.35; background: var(--bg) !important; }
+.sortable-chosen { box-shadow: var(--shadow-lg); }
+.sortable-drag {
+  cursor: grabbing;
+  transform: rotate(1.5deg);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Pin badge for explicit "Next in line" ordering */

@@ -271,6 +271,25 @@ app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
   res.status(201).json({ car });
 });
 
+app.post('/api/cars/reorder', requireRole('manager'), (req, res) => {
+  const { orderedIds } = req.body || {};
+  if (!Array.isArray(orderedIds) || orderedIds.some(id => !Number.isInteger(id))) {
+    return res.status(400).json({ error: 'invalid_ordered_ids' });
+  }
+  if (orderedIds.length === 0) return res.json({ ok: true });
+  const placeholders = orderedIds.map(() => '?').join(',');
+  const existing = db.prepare(`SELECT id FROM cars WHERE id IN (${placeholders})`).all(...orderedIds);
+  if (existing.length !== orderedIds.length) {
+    return res.status(400).json({ error: 'unknown_car_id' });
+  }
+  const upd = db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?');
+  db.transaction(() => {
+    orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id));
+  })();
+  broadcast('cars', {});
+  res.json({ ok: true });
+});
+
 app.patch('/api/cars/:id', requireRole('manager'), (req, res) => {
   const id = parseInt(req.params.id, 10);
   const target = db.prepare('SELECT id, category FROM cars WHERE id = ?').get(id);
@@ -347,6 +366,14 @@ app.use('/uploads', requireAuth, express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true
 }));
+
+app.get('/vendor/sortable.min.js', (_req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, 'node_modules', 'sortablejs', 'Sortable.min.js'), {
+    maxAge: '30d',
+    immutable: true
+  });
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
