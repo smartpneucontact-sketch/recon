@@ -13,6 +13,16 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('manager', 'sales', 'recon')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
   CREATE TABLE IF NOT EXISTS cars (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     stock_number TEXT NOT NULL,
@@ -34,5 +44,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_cars_status ON cars(status);
   CREATE INDEX IF NOT EXISTS idx_photos_car ON photos(car_id);
 `);
+
+function columnExists(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
+if (!columnExists('cars', 'created_by_user_id')) {
+  db.exec('ALTER TABLE cars ADD COLUMN created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
+if (!columnExists('cars', 'completed_by_user_id')) {
+  db.exec('ALTER TABLE cars ADD COLUMN completed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
 
 module.exports = { db, DATA_DIR, UPLOADS_DIR };

@@ -75,6 +75,36 @@ body {
 
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+.user-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+  color: white;
+  font-size: 12px;
+  padding: 0 4px;
+  max-width: 140px;
+  min-width: 0;
+}
+.user-chip .user-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.user-chip .user-role {
+  font-size: 11px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+@media (max-width: 480px) {
+  .user-chip { max-width: 100px; }
+  .user-chip .user-name { font-size: 12px; }
+}
+
 #lang-select {
   background: rgba(255,255,255,0.1);
   color: white;
@@ -264,8 +294,23 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .cat-tile.trade_auction .cat-icon { color: #92400e; }
 .cat-tile.service .cat-icon { color: #166534; }
 
-.login { max-width: 380px; margin: 40px auto; }
+.login { max-width: 420px; margin: 40px auto; }
 .login form { margin-top: 16px; }
+.login h1 { margin-bottom: 8px; }
+.login small.muted { font-size: 12px; margin-top: 4px; }
+
+.auth-switch {
+  margin-top: 16px;
+  font-size: 14px;
+}
+.auth-switch a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 4px;
+  padding: 4px;
+}
+.auth-switch a:hover { text-decoration: underline; }
 
 /* Filters */
 .filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }

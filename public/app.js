@@ -1,5 +1,5 @@
 const state = {
-  role: null,
+  user: null,
   view: 'login',
   carId: null,
   filter: { status: 'pending', category: 'all' }
@@ -8,6 +8,9 @@ const state = {
 const $app = document.getElementById('app');
 const $logout = document.getElementById('logout-btn');
 const $lang = document.getElementById('lang-select');
+const $userChip = document.getElementById('user-chip');
+const $userName = document.getElementById('user-name');
+const $userRole = document.getElementById('user-role');
 
 function api(method, url, body, isForm) {
   const opts = { method, headers: {}, credentials: 'same-origin' };
@@ -62,9 +65,27 @@ function render(tplId) {
 }
 
 function applyRoleVisibility() {
-  $app.querySelectorAll('.manager-only').forEach(el => {
-    el.hidden = state.role !== 'manager';
+  const role = state.user && state.user.role;
+  $app.querySelectorAll('[data-roles]').forEach(el => {
+    const allowed = el.dataset.roles.split(',').map(s => s.trim());
+    el.hidden = !role || !allowed.includes(role);
   });
+  document.querySelectorAll('.sticky-action [data-roles]').forEach(el => {
+    const allowed = el.dataset.roles.split(',').map(s => s.trim());
+    el.hidden = !role || !allowed.includes(role);
+  });
+}
+
+function updateUserChip() {
+  if (state.user) {
+    $userName.textContent = state.user.name;
+    $userRole.textContent = i18n.t('role.' + state.user.role);
+    $userChip.hidden = false;
+    $logout.hidden = false;
+  } else {
+    $userChip.hidden = true;
+    $logout.hidden = true;
+  }
 }
 
 function parseDate(s) {
@@ -107,21 +128,64 @@ function fmtDuration(ms) {
 /* ---------- LOGIN ---------- */
 function showLogin() {
   state.view = 'login';
-  $logout.hidden = true;
+  state.user = null;
+  updateUserChip();
   render('tpl-login');
   const form = document.getElementById('login-form');
+  const email = document.getElementById('login-email');
   const pwd = document.getElementById('login-password');
   const err = document.getElementById('login-error');
-  pwd.focus();
+  document.getElementById('go-signup').addEventListener('click', (e) => { e.preventDefault(); showSignup(); });
+  email.focus();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
     try {
-      const res = await api('POST', '/api/login', { password: pwd.value });
-      state.role = res.role;
+      const res = await api('POST', '/api/login', { email: email.value.trim(), password: pwd.value });
+      state.user = res.user;
+      updateUserChip();
       showDashboard();
     } catch (ex) {
       err.textContent = ex.status === 401 ? i18n.t('login.invalid') : i18n.t('login.error');
+      err.hidden = false;
+    }
+  });
+}
+
+/* ---------- SIGNUP ---------- */
+function showSignup() {
+  state.view = 'signup';
+  state.user = null;
+  updateUserChip();
+  render('tpl-signup');
+  const form = document.getElementById('signup-form');
+  const name = document.getElementById('signup-name');
+  const email = document.getElementById('signup-email');
+  const pwd = document.getElementById('signup-password');
+  const err = document.getElementById('signup-error');
+  document.getElementById('go-login').addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
+  name.focus();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    const role = form.querySelector('input[name="signup-role"]:checked');
+    if (!role) { err.textContent = i18n.t('signup.roleRequired'); err.hidden = false; return; }
+    if (pwd.value.length < 6) { err.textContent = i18n.t('signup.passwordShort'); err.hidden = false; return; }
+    try {
+      const res = await api('POST', '/api/signup', {
+        name: name.value.trim(),
+        email: email.value.trim(),
+        password: pwd.value,
+        role: role.value
+      });
+      state.user = res.user;
+      updateUserChip();
+      showDashboard();
+    } catch (ex) {
+      if (ex.status === 409) err.textContent = i18n.t('signup.emailTaken');
+      else if (ex.data && ex.data.error === 'email_invalid') err.textContent = i18n.t('signup.invalidEmail');
+      else if (ex.data && ex.data.error === 'password_too_short') err.textContent = i18n.t('signup.passwordShort');
+      else err.textContent = i18n.t('signup.error');
       err.hidden = false;
     }
   });
@@ -131,7 +195,7 @@ function showLogin() {
 async function showDashboard() {
   state.view = 'dashboard';
   state.carId = null;
-  $logout.hidden = false;
+  updateUserChip();
   render('tpl-dashboard');
 
   document.querySelectorAll('#status-filter button').forEach(btn => {
@@ -249,11 +313,17 @@ async function showCarDetail(id) {
     stEl.classList.add(car.status);
 
     const ts = document.getElementById('car-timestamps');
+    const orderedValue = car.created_by_name
+      ? `${fmtDate(car.created_at)} · ${car.created_by_name}`
+      : fmtDate(car.created_at);
     const rows = [
-      { label: i18n.t('detail.orderedAt'), value: fmtDate(car.created_at) }
+      { label: i18n.t('detail.orderedAt'), value: orderedValue }
     ];
     if (car.completed_at) {
-      rows.push({ label: i18n.t('detail.finishedAt'), value: fmtDate(car.completed_at) });
+      const finishedValue = car.completed_by_name
+        ? `${fmtDate(car.completed_at)} · ${car.completed_by_name}`
+        : fmtDate(car.completed_at);
+      rows.push({ label: i18n.t('detail.finishedAt'), value: finishedValue });
       const ms = parseDate(car.completed_at) - parseDate(car.created_at);
       if (ms > 0) rows.push({ label: i18n.t('detail.duration'), value: fmtDuration(ms) });
     }
@@ -267,27 +337,34 @@ async function showCarDetail(id) {
     const deleteBtn = document.getElementById('delete-car');
     const stickyAction = document.getElementById('sticky-action');
 
+    const role = state.user && state.user.role;
+    const canWrite = role === 'manager' || role === 'sales';
+    const canComplete = role === 'manager' || role === 'recon';
+    const isManager = role === 'manager';
+
     let showSticky = false;
 
     if (car.status === 'pending') {
-      completeBtn.hidden = false;
+      if (canComplete) {
+        completeBtn.hidden = false;
+        showSticky = true;
+        completeBtn.addEventListener('click', async () => {
+          if (!confirm(i18n.t('detail.markDoneConfirm'))) return;
+          completeBtn.disabled = true;
+          try {
+            await api('POST', `/api/cars/${id}/complete`);
+            showDashboard();
+          } catch (ex) {
+            completeBtn.disabled = false;
+            alert(ex.message);
+          }
+        });
+      }
       reopenBtn.hidden = true;
-      showSticky = true;
-      completeBtn.addEventListener('click', async () => {
-        if (!confirm(i18n.t('detail.markDoneConfirm'))) return;
-        completeBtn.disabled = true;
-        try {
-          await api('POST', `/api/cars/${id}/complete`);
-          showDashboard();
-        } catch (ex) {
-          completeBtn.disabled = false;
-          alert(ex.message);
-        }
-      });
-      if (state.role === 'manager') uploadZone.hidden = false;
+      if (canWrite) uploadZone.hidden = false;
     } else {
       completeBtn.hidden = true;
-      if (state.role === 'manager') {
+      if (isManager) {
         reopenBtn.hidden = false;
         showSticky = true;
         reopenBtn.addEventListener('click', async () => {
@@ -298,15 +375,15 @@ async function showCarDetail(id) {
     }
     stickyAction.hidden = !showSticky;
 
-    if (state.role === 'manager') {
+    if (isManager) {
       deleteBtn.hidden = false;
       deleteBtn.addEventListener('click', async () => {
         if (!confirm(i18n.t('detail.deleteConfirm'))) return;
         await api('DELETE', `/api/cars/${id}`);
         showDashboard();
       });
-      setupUpload(id);
     }
+    if (canWrite) setupUpload(id);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     $app.innerHTML = `<p class="error">${ex.message}</p>`;
@@ -330,7 +407,7 @@ function renderPhotos(photos) {
       <div class="note" data-empty="${escapeAttr(i18n.t('detail.noNote'))}">${escapeHtml(p.note || '')}</div>
       <div class="photo-foot">
         <span class="time">${fmtDate(p.created_at)}</span>
-        ${state.role === 'manager' ? `<button class="remove" data-photo-id="${p.id}">${i18n.t('detail.removePhoto')}</button>` : ''}
+        ${(state.user && state.user.role === 'manager') ? `<button class="remove" data-photo-id="${p.id}">${i18n.t('detail.removePhoto')}</button>` : ''}
       </div>
     `;
     const wrap = card.querySelector('.img-wrap');
@@ -474,7 +551,7 @@ $logout.setAttribute('aria-label', i18n.t('common.logout'));
 $logout.addEventListener('click', async () => {
   if (!confirm(i18n.t('common.logoutConfirm'))) return;
   await api('POST', '/api/logout');
-  state.role = null;
+  state.user = null;
   showLogin();
 });
 
@@ -483,9 +560,11 @@ $lang.addEventListener('change', () => {
   i18n.setLang($lang.value);
   $logout.title = i18n.t('common.logout');
   $logout.setAttribute('aria-label', i18n.t('common.logout'));
+  updateUserChip();
   if (state.view === 'dashboard') showDashboard();
   else if (state.view === 'detail' && state.carId) showCarDetail(state.carId);
   else if (state.view === 'add') showAddCar();
+  else if (state.view === 'signup') showSignup();
   else showLogin();
 });
 
@@ -495,8 +574,9 @@ i18n.apply(document);
 (async () => {
   try {
     const me = await api('GET', '/api/me');
-    state.role = me.role;
-    if (me.role) showDashboard();
+    state.user = me.user;
+    updateUserChip();
+    if (me.user) showDashboard();
     else showLogin();
   } catch {
     showLogin();
