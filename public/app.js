@@ -95,7 +95,12 @@ function updateUserChip() {
 
 function parseDate(s) {
   if (!s) return null;
-  const d = new Date(s.replace(' ', 'T') + 'Z');
+  let str = String(s);
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) {
+    // SQLite naive UTC datetime — promote to ISO
+    str = str.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(str);
   return isNaN(d) ? null : d;
 }
 function fmtDate(s) {
