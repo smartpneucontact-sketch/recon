@@ -18,6 +18,10 @@ const $userChip = document.getElementById('user-chip');
 const $userName = document.getElementById('user-name');
 const $userRole = document.getElementById('user-role');
 const $usersBtn = document.getElementById('users-btn');
+const $urgentToast = document.getElementById('urgent-toast');
+const $urgentToastTitle = document.getElementById('urgent-toast-title');
+const $urgentToastSub = document.getElementById('urgent-toast-sub');
+const $pushBanner = document.getElementById('enable-push-banner');
 
 function api(method, url, body, isForm) {
   const opts = { method, headers: {}, credentials: 'same-origin' };
@@ -49,11 +53,46 @@ function startLiveUpdates() {
     es.addEventListener('change', (e) => {
       let payload = {};
       try { payload = JSON.parse(e.data); } catch {}
+      if (payload.type === 'urgent' && payload.urgent) handleUrgentEvent(payload);
       scheduleLiveRefresh(payload);
     });
     es.addEventListener('hello', () => setLiveIndicator(true));
     es.onerror = () => setLiveIndicator(false);
     state.liveSource = es;
+  } catch {}
+}
+
+function handleUrgentEvent(p) {
+  if (state.user && state.user.id === p.by_user_id) return; // don't toast the person who set it
+  $urgentToastTitle.textContent = `${i18n.t('toast.urgentTitle')} · ${p.stock_number || ''}`;
+  $urgentToastSub.textContent = p.by ? `${i18n.t('toast.urgentSubBy')} ${p.by}` : i18n.t('toast.urgentSub');
+  $urgentToast.hidden = false;
+  $urgentToast.classList.remove('flash');
+  // force reflow so the animation replays
+  void $urgentToast.offsetWidth;
+  $urgentToast.classList.add('flash');
+  playBeep();
+  if (state.urgentToastTimer) clearTimeout(state.urgentToastTimer);
+  state.urgentToastTimer = setTimeout(() => { $urgentToast.hidden = true; }, 8000);
+}
+
+function playBeep() {
+  try {
+    const ctx = window._beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    window._beepCtx = ctx;
+    const now = ctx.currentTime;
+    [880, 660, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + i * 0.18);
+      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.18 + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + i * 0.18 + 0.14);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.18);
+      osc.stop(now + i * 0.18 + 0.16);
+    });
   } catch {}
 }
 function stopLiveUpdates() {
@@ -84,6 +123,82 @@ function applyLiveRefresh(payload) {
     showUsers();
   }
 }
+/* ---------- WEB PUSH NOTIFICATIONS ---------- */
+async function setupPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'open-car' && e.data.carId) {
+        showCarDetail(e.data.carId);
+      }
+    });
+
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      // Re-sync with server (idempotent)
+      await api('POST', '/api/push/subscribe', subscriptionToJSON(existing)).catch(() => {});
+      hidePushBanner();
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      await subscribePush(reg);
+      hidePushBanner();
+      return;
+    }
+    if (Notification.permission === 'default' && !sessionStorage.getItem('push_dismissed')) {
+      $pushBanner.hidden = false;
+    } else {
+      hidePushBanner();
+    }
+  } catch (err) {
+    console.warn('Push setup failed', err);
+  }
+}
+
+async function subscribePush(reg) {
+  const { key } = await api('GET', '/api/push/key');
+  const applicationServerKey = urlBase64ToUint8Array(key);
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+  await api('POST', '/api/push/subscribe', subscriptionToJSON(sub));
+}
+
+function subscriptionToJSON(sub) {
+  const s = sub.toJSON();
+  return { endpoint: s.endpoint, keys: s.keys };
+}
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return new Uint8Array([...raw].map(c => c.charCodeAt(0)));
+}
+function hidePushBanner() { if ($pushBanner) $pushBanner.hidden = true; }
+
+if ($pushBanner) {
+  document.getElementById('enable-push-btn').addEventListener('click', async () => {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+        await subscribePush(reg);
+      }
+    } catch (err) {
+      console.warn('enable push failed', err);
+    }
+    hidePushBanner();
+  });
+  document.getElementById('dismiss-push-btn').addEventListener('click', () => {
+    sessionStorage.setItem('push_dismissed', '1');
+    hidePushBanner();
+  });
+}
+document.getElementById('urgent-toast-close')?.addEventListener('click', () => {
+  $urgentToast.hidden = true;
+});
+
 function setLiveIndicator(on) {
   const dot = document.getElementById('live-dot');
   if (dot) dot.classList.toggle('on', !!on);
@@ -192,6 +307,8 @@ function showLogin() {
   state.view = 'login';
   state.user = null;
   stopLiveUpdates();
+  hidePushBanner();
+  $urgentToast.hidden = true;
   updateUserChip();
   render('tpl-login');
   const form = document.getElementById('login-form');
@@ -208,6 +325,7 @@ function showLogin() {
       state.user = res.user;
       updateUserChip();
       startLiveUpdates();
+      setupPush();
       showDashboard();
     } catch (ex) {
       err.textContent = ex.status === 401 ? i18n.t('login.invalid') : i18n.t('login.error');
@@ -247,6 +365,7 @@ function showSignup() {
       state.user = res.user;
       updateUserChip();
       startLiveUpdates();
+      setupPush();
       showDashboard();
     } catch (ex) {
       if (ex.status === 409) err.textContent = i18n.t('signup.emailTaken');
@@ -377,9 +496,14 @@ function renderCarRow(c, opts) {
   const categoryBadge = showCategory
     ? `<span class="badge ${c.category}">${escapeHtml(i18n.t('category.' + c.category))}</span>`
     : '';
+  const urgentBadge = c.is_urgent
+    ? `<span class="urgent-badge" title="${escapeAttr(i18n.t('detail.urgentActive'))}">🚨 ${escapeHtml(i18n.t('badge.urgent'))}</span>`
+    : '';
+  if (c.is_urgent) row.classList.add('is-urgent');
   row.innerHTML = `
     <div class="left">
       <div class="stock-line">
+        ${urgentBadge}
         <span class="stock">${escapeHtml(c.stock_number)}</span>
         ${categoryBadge}
       </div>
@@ -648,6 +772,7 @@ async function showCarDetail(id) {
       });
     }
     if (canWrite) setupUpload(id);
+    setupUrgentToggle(car, canWrite);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     $app.innerHTML = `<p class="error">${ex.message}</p>`;
@@ -712,6 +837,34 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
+
+function setupUrgentToggle(car, canWrite) {
+  const strip = document.getElementById('urgent-strip');
+  const meta = document.getElementById('urgent-meta');
+  const controls = document.querySelector('.urgent-controls');
+  const btn = document.getElementById('urgent-toggle');
+  const label = document.getElementById('urgent-toggle-label');
+  const isUrgent = !!car.is_urgent;
+  if (strip) {
+    strip.hidden = !isUrgent;
+    meta.textContent = (isUrgent && car.urgent_set_at) ? `· ${fmtDate(car.urgent_set_at)}` : '';
+  }
+  if (!canWrite || !controls || !btn) return;
+  controls.hidden = false;
+  btn.classList.toggle('is-urgent', isUrgent);
+  label.textContent = i18n.t(isUrgent ? 'detail.unmarkUrgent' : 'detail.markUrgent');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await api('POST', `/api/cars/${car.id}/urgent`, { urgent: !isUrgent });
+      showCarDetail(car.id);
+    } catch (ex) {
+      btn.disabled = false;
+      if (ex.status === 401) return showLogin();
+      alert(ex.message || 'Could not update.');
+    }
+  };
+}
 
 function setupUpload(carId) {
   const input = document.getElementById('photo-input');
@@ -850,6 +1003,7 @@ i18n.apply(document);
     updateUserChip();
     if (me.user) {
       startLiveUpdates();
+      setupPush();
       showDashboard();
     } else showLogin();
   } catch {

@@ -4,7 +4,8 @@ const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
-const { db, DATA_DIR, UPLOADS_DIR } = require('./db');
+const webpush = require('web-push');
+const { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
@@ -44,6 +45,48 @@ const upload = multer({
     else cb(new Error('Only image uploads are allowed'));
   }
 });
+
+/* ---------- VAPID / Web Push ---------- */
+let vapidPublic = process.env.VAPID_PUBLIC_KEY || getMeta('vapid_public');
+let vapidPrivate = process.env.VAPID_PRIVATE_KEY || getMeta('vapid_private');
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@atlanticsubaru.local';
+if (!vapidPublic || !vapidPrivate) {
+  const keys = webpush.generateVAPIDKeys();
+  vapidPublic = keys.publicKey;
+  vapidPrivate = keys.privateKey;
+  setMeta('vapid_public', vapidPublic);
+  setMeta('vapid_private', vapidPrivate);
+  console.log('Generated and persisted new VAPID keys.');
+}
+webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+
+async function notifyRoles(roles, payload) {
+  if (!roles.length) return;
+  const placeholders = roles.map(() => '?').join(',');
+  const subs = db.prepare(`
+    SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+    FROM push_subscriptions ps
+    JOIN users u ON u.id = ps.user_id
+    WHERE u.role IN (${placeholders})
+  `).all(...roles);
+  const dead = [];
+  await Promise.all(subs.map(async (s) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify(payload),
+        { TTL: 3600 }
+      );
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) dead.push(s.id);
+      else console.error('push error', err.statusCode || err.message);
+    }
+  }));
+  if (dead.length) {
+    const dp = dead.map(() => '?').join(',');
+    db.prepare(`DELETE FROM push_subscriptions WHERE id IN (${dp})`).run(...dead);
+  }
+}
 
 /* ---------- Server-Sent Events (live updates) ---------- */
 const sseClients = new Set();
@@ -117,6 +160,34 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.json({ user: publicUser(req.user) });
+});
+
+app.get('/api/push/key', requireAuth, (_req, res) => {
+  res.json({ key: vapidPublic });
+});
+
+app.post('/api/push/subscribe', requireAuth, (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+    return res.status(400).json({ error: 'invalid_subscription' });
+  }
+  const ua = (req.headers['user-agent'] || '').slice(0, 250);
+  db.prepare(`
+    INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      user_id = excluded.user_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      user_agent = excluded.user_agent
+  `).run(req.user.id, endpoint, keys.p256dh, keys.auth, ua);
+  res.json({ ok: true });
+});
+
+app.post('/api/push/unsubscribe', requireAuth, (req, res) => {
+  const { endpoint } = req.body || {};
+  if (endpoint) db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+  res.json({ ok: true });
 });
 
 app.get('/api/events', requireAuth, (req, res) => {
@@ -295,6 +366,37 @@ app.post('/api/cars/move', requireRole('manager'), (req, res) => {
   db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?').run(newRank, id);
   broadcast('cars', {});
   res.json({ ok: true });
+});
+
+app.post('/api/cars/:id/urgent', requireRole('manager', 'sales'), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
+  if (!car) return res.status(404).json({ error: 'not_found' });
+  const urgent = !!req.body.urgent;
+  if (urgent) {
+    db.prepare(`
+      UPDATE cars SET is_urgent = 1, urgent_set_at = datetime('now'), urgent_set_by_user_id = ?
+      WHERE id = ?
+    `).run(req.user.id, id);
+  } else {
+    db.prepare(`
+      UPDATE cars SET is_urgent = 0, urgent_set_at = NULL, urgent_set_by_user_id = NULL
+      WHERE id = ?
+    `).run(id);
+  }
+  const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
+  broadcast('urgent', { id: updated.id, category: updated.category, urgent, stock_number: updated.stock_number, by: req.user.name, by_user_id: req.user.id });
+
+  if (urgent) {
+    notifyRoles(['recon'], {
+      title: `🚨 URGENT · ${updated.stock_number}`,
+      body: `${updated.category.replace('_', ' ').toUpperCase()} flagged urgent by ${req.user.name}`,
+      url: `/?car=${updated.id}`,
+      tag: `urgent-${updated.id}`,
+      carId: updated.id
+    }).catch(err => console.error('notifyRoles failed', err));
+  }
+  res.json({ car: updated });
 });
 
 app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {

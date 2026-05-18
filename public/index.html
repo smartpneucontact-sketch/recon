@@ -39,6 +39,23 @@
     </div>
   </header>
 
+  <div id="urgent-toast" class="urgent-toast" hidden role="status" aria-live="polite">
+    <span class="urgent-bolt" aria-hidden="true">🚨</span>
+    <div class="urgent-toast-body">
+      <strong id="urgent-toast-title"></strong>
+      <span id="urgent-toast-sub"></span>
+    </div>
+    <button id="urgent-toast-close" class="urgent-toast-close" aria-label="Dismiss">✕</button>
+  </div>
+
+  <div id="enable-push-banner" class="push-banner" hidden>
+    <span>🔔 <span data-i18n="push.enable">Get notified when a job is marked urgent.</span></span>
+    <span class="push-banner-actions">
+      <button id="enable-push-btn" class="primary" data-i18n="push.enableBtn">Enable</button>
+      <button id="dismiss-push-btn" class="ghost" data-i18n="push.notNow">Not now</button>
+    </span>
+  </div>
+
   <main id="app"></main>
 
   <template id="tpl-login">
@@ -241,6 +258,19 @@
           <dl class="timestamps" id="car-timestamps"></dl>
         </div>
         <button id="delete-car" class="icon-btn danger role-gated" data-roles="manager" hidden aria-label="Delete" title="Delete">🗑</button>
+      </div>
+
+      <div id="urgent-strip" class="urgent-strip" hidden>
+        <span class="urgent-bolt" aria-hidden="true">🚨</span>
+        <span class="urgent-strip-text" data-i18n="detail.urgentActive">This job is flagged URGENT.</span>
+        <span id="urgent-meta" class="muted"></span>
+      </div>
+
+      <div class="urgent-controls role-gated" data-roles="manager,sales" hidden>
+        <button id="urgent-toggle" class="urgent-btn" type="button">
+          <span class="urgent-bolt" aria-hidden="true">🚨</span>
+          <span id="urgent-toggle-label" data-i18n="detail.markUrgent">Mark as urgent</span>
+        </button>
       </div>
 
       <div id="photos" class="photos"></div>

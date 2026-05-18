@@ -79,6 +79,41 @@ if (!columnExists('cars', 'next_in_line')) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_cars_nextinline ON cars(next_in_line)');
 
+if (!columnExists('cars', 'is_urgent')) {
+  db.exec('ALTER TABLE cars ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0');
+}
+if (!columnExists('cars', 'urgent_set_at')) {
+  db.exec('ALTER TABLE cars ADD COLUMN urgent_set_at TEXT');
+}
+if (!columnExists('cars', 'urgent_set_by_user_id')) {
+  db.exec('ALTER TABLE cars ADD COLUMN urgent_set_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    user_agent TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+`);
+
+function getMeta(key) {
+  const row = db.prepare('SELECT value FROM app_meta WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+function setMeta(key, value) {
+  db.prepare('INSERT OR REPLACE INTO app_meta(key, value) VALUES (?, ?)').run(key, value);
+}
+
 // Backfill: ensure every car has a numeric rank, defaulting to its scheduled_at as ms.
 const pending = db.prepare(`
   SELECT id, scheduled_at FROM cars WHERE next_in_line IS NULL AND scheduled_at IS NOT NULL
@@ -93,4 +128,4 @@ if (pending.length) {
   })();
 }
 
-module.exports = { db, DATA_DIR, UPLOADS_DIR };
+module.exports = { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta };
