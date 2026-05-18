@@ -295,7 +295,7 @@ async function loadCars() {
 }
 
 function renderBoards(cars) {
-  const grouped = {};
+  const grouped = { __next: cars.slice() };
   for (const cat of CATEGORIES) grouped[cat] = [];
   for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
 
@@ -305,18 +305,20 @@ function renderBoards(cars) {
     const empty = board.querySelector('[data-board-empty]');
     const count = board.querySelector('[data-board-count]');
     list.innerHTML = '';
-    const items = grouped[cat];
+    const items = grouped[cat] || [];
     count.textContent = items.length ? String(items.length) : '';
     if (!items.length) {
       empty.hidden = false;
     } else {
       empty.hidden = true;
-      for (const c of items) list.appendChild(renderCarRow(c));
+      const showCategory = (cat === '__next');
+      for (const c of items) list.appendChild(renderCarRow(c, { showCategory }));
     }
   }
 }
 
-function renderCarRow(c) {
+function renderCarRow(c, opts) {
+  const showCategory = !!(opts && opts.showCategory);
   const row = document.createElement('div');
   row.className = 'car-row';
   row.dataset.carId = c.id;
@@ -328,11 +330,15 @@ function renderCarRow(c) {
   const pinBadge = (c.next_in_line != null)
     ? `<span class="pin-badge" title="${escapeAttr(i18n.t('detail.nextInLine'))}">#${escapeHtml(String(c.next_in_line))}</span>`
     : '';
+  const categoryBadge = showCategory
+    ? `<span class="badge ${c.category}">${escapeHtml(i18n.t('category.' + c.category))}</span>`
+    : '';
   row.innerHTML = `
     <div class="left">
       <div class="stock-line">
         ${pinBadge}
         <span class="stock">${escapeHtml(c.stock_number)}</span>
+        ${categoryBadge}
       </div>
       ${scheduleText ? `<div class="schedule-line">📅 ${escapeHtml(scheduleText)}</div>` : ''}
       <div class="sub">

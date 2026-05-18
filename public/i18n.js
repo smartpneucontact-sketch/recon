@@ -65,6 +65,7 @@ const I18N = {
 
     'dashboard.addCar': 'Add vehicle',
     'dashboard.empty': 'No vehicles.',
+    'dashboard.nextInLine': 'Next in line',
     'dashboard.photos': 'photos',
     'dashboard.photo': 'photo',
     'dashboard.noPhotos': 'no photos',
@@ -176,6 +177,7 @@ const I18N = {
 
     'dashboard.addCar': 'Añadir vehículo',
     'dashboard.empty': 'Sin vehículos.',
+    'dashboard.nextInLine': 'Próximo en línea',
     'dashboard.photos': 'fotos',
     'dashboard.photo': 'foto',
     'dashboard.noPhotos': 'sin fotos',

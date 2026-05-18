@@ -229,8 +229,7 @@ app.get('/api/cars', requireAuth, (req, res) => {
     LEFT JOIN users cu ON cu.id = c.created_by_user_id
     LEFT JOIN users du ON du.id = c.completed_by_user_id
     ${where}
-    ORDER BY c.category ASC,
-             c.status ASC,
+    ORDER BY c.status ASC,
              (c.next_in_line IS NULL) ASC,
              c.next_in_line ASC,
              c.scheduled_at ASC,
