@@ -27,6 +27,7 @@
         <span class="user-name" id="user-name"></span>
         <span class="user-role" id="user-role"></span>
       </span>
+      <button id="users-btn" class="ghost-on-dark role-gated" data-roles="manager" hidden aria-label="Users" title="Users">👥</button>
       <select id="lang-select" aria-label="Language">
         <option value="en">EN</option>
         <option value="es">ES</option>
@@ -72,6 +73,10 @@
         <label>
           <span data-i18n="auth.email">Email</span>
           <input type="email" id="signup-email" autocomplete="email" inputmode="email" enterkeyhint="next" required />
+        </label>
+        <label>
+          <span data-i18n="auth.phone">Phone number</span>
+          <input type="tel" id="signup-phone" autocomplete="tel" inputmode="tel" enterkeyhint="next" required />
         </label>
         <label>
           <span data-i18n="auth.password">Password</span>
@@ -253,6 +258,62 @@
       <button id="complete-btn" class="primary block big role-gated" data-roles="manager,recon" hidden data-i18n="detail.markDone">Mark cleaning as done</button>
       <button id="reopen-btn" class="ghost block role-gated" data-roles="manager" hidden data-i18n="detail.reopen">Reopen</button>
     </div>
+  </template>
+
+  <template id="tpl-users">
+    <section>
+      <button class="back" data-back>&larr; <span data-i18n="common.back">Back</span></button>
+      <div class="users-header">
+        <h2 data-i18n="users.title">Users</h2>
+        <span class="muted" id="users-count"></span>
+      </div>
+      <div id="users-list" class="users-list"></div>
+      <p id="users-empty" class="muted center" hidden data-i18n="users.empty">No users.</p>
+      <p id="users-error" class="error" hidden></p>
+    </section>
+  </template>
+
+  <template id="tpl-edit-user">
+    <section class="card">
+      <button class="back" data-back>&larr; <span data-i18n="common.back">Back</span></button>
+      <h2 data-i18n="users.editTitle">Edit user</h2>
+      <form id="edit-user-form">
+        <label>
+          <span data-i18n="auth.name">Name</span>
+          <input type="text" id="edit-name" autocomplete="name" required />
+        </label>
+        <label>
+          <span data-i18n="auth.email">Email</span>
+          <input type="email" id="edit-email" autocomplete="email" inputmode="email" required />
+        </label>
+        <label>
+          <span data-i18n="auth.phone">Phone number</span>
+          <input type="tel" id="edit-phone" autocomplete="tel" inputmode="tel" />
+        </label>
+        <fieldset class="cat-picker">
+          <legend data-i18n="auth.role">Role</legend>
+          <label class="cat-card">
+            <input type="radio" name="edit-role" value="manager" />
+            <span class="cat-tile"><span class="cat-icon">👔</span><span class="cat-label" data-i18n="role.manager">Manager</span></span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="edit-role" value="sales" />
+            <span class="cat-tile"><span class="cat-icon">🤝</span><span class="cat-label" data-i18n="role.sales">Sales</span></span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="edit-role" value="recon" />
+            <span class="cat-tile"><span class="cat-icon">🧽</span><span class="cat-label" data-i18n="role.recon">Recon</span></span>
+          </label>
+        </fieldset>
+        <label>
+          <span data-i18n="users.newPassword">New password (optional)</span>
+          <input type="password" id="edit-password" autocomplete="new-password" minlength="6" placeholder="" />
+          <small class="muted" data-i18n="users.passwordHint">Leave blank to keep the existing password.</small>
+        </label>
+        <button type="submit" class="primary block big" data-i18n="users.save">Save</button>
+        <p id="edit-user-error" class="error" hidden></p>
+      </form>
+    </section>
   </template>
 
   <div id="lightbox" class="lightbox" hidden>

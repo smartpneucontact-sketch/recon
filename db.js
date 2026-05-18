@@ -48,6 +48,9 @@ db.exec(`
 function columnExists(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
 }
+if (!columnExists('users', 'phone')) {
+  db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
+}
 if (!columnExists('cars', 'created_by_user_id')) {
   db.exec('ALTER TABLE cars ADD COLUMN created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }

@@ -13,6 +13,7 @@ const $lang = document.getElementById('lang-select');
 const $userChip = document.getElementById('user-chip');
 const $userName = document.getElementById('user-name');
 const $userRole = document.getElementById('user-role');
+const $usersBtn = document.getElementById('users-btn');
 
 function api(method, url, body, isForm) {
   const opts = { method, headers: {}, credentials: 'same-origin' };
@@ -84,9 +85,11 @@ function updateUserChip() {
     $userRole.textContent = i18n.t('role.' + state.user.role);
     $userChip.hidden = false;
     $logout.hidden = false;
+    $usersBtn.hidden = state.user.role !== 'manager';
   } else {
     $userChip.hidden = true;
     $logout.hidden = true;
+    $usersBtn.hidden = true;
   }
 }
 
@@ -163,6 +166,7 @@ function showSignup() {
   const form = document.getElementById('signup-form');
   const name = document.getElementById('signup-name');
   const email = document.getElementById('signup-email');
+  const phone = document.getElementById('signup-phone');
   const pwd = document.getElementById('signup-password');
   const err = document.getElementById('signup-error');
   document.getElementById('go-login').addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
@@ -177,6 +181,7 @@ function showSignup() {
       const res = await api('POST', '/api/signup', {
         name: name.value.trim(),
         email: email.value.trim(),
+        phone: phone.value.trim(),
         password: pwd.value,
         role: role.value
       });
@@ -361,6 +366,110 @@ function showAddCar() {
     } catch (ex) {
       if (ex.status === 401) return showLogin();
       if (ex.data && ex.data.error === 'scheduled_at_required') err.textContent = i18n.t('addCar.scheduleRequired');
+      else err.textContent = ex.message;
+      err.hidden = false;
+    }
+  });
+}
+
+/* ---------- USERS (manager) ---------- */
+async function showUsers() {
+  state.view = 'users';
+  state.carId = null;
+  render('tpl-users');
+  document.querySelector('[data-back]').addEventListener('click', showDashboard);
+  const list = document.getElementById('users-list');
+  const empty = document.getElementById('users-empty');
+  const count = document.getElementById('users-count');
+  const err = document.getElementById('users-error');
+  list.innerHTML = `<p class="muted center">${i18n.t('common.loading')}</p>`;
+  try {
+    const { users } = await api('GET', '/api/users');
+    list.innerHTML = '';
+    count.textContent = users.length ? `(${users.length})` : '';
+    if (!users.length) { empty.hidden = false; return; }
+    empty.hidden = true;
+    for (const u of users) list.appendChild(renderUserRow(u));
+  } catch (ex) {
+    if (ex.status === 401) return showLogin();
+    if (ex.status === 403) return showDashboard();
+    err.textContent = ex.message;
+    err.hidden = false;
+  }
+}
+
+function renderUserRow(u) {
+  const row = document.createElement('div');
+  row.className = 'user-row';
+  const isSelf = state.user && u.id === state.user.id;
+  row.innerHTML = `
+    <div class="user-main">
+      <div class="user-row-name">${escapeHtml(u.name)} ${isSelf ? `<span class="muted">(${escapeHtml(i18n.t('users.you'))})</span>` : ''}</div>
+      <div class="user-row-sub">
+        <span class="badge ${u.role}">${escapeHtml(i18n.t('role.' + u.role))}</span>
+        <span class="user-row-contact">${escapeHtml(u.email)}</span>
+        ${u.phone ? `<span class="user-row-contact">📞 ${escapeHtml(u.phone)}</span>` : ''}
+      </div>
+    </div>
+    <div class="user-actions">
+      <button class="ghost edit-btn" data-i18n="users.edit">Edit</button>
+      <button class="danger delete-btn" ${isSelf ? 'disabled' : ''} data-i18n="common.delete">Delete</button>
+    </div>
+  `;
+  i18n.apply(row);
+  row.querySelector('.edit-btn').addEventListener('click', () => showEditUser(u));
+  const delBtn = row.querySelector('.delete-btn');
+  if (!isSelf) {
+    delBtn.addEventListener('click', async () => {
+      if (!confirm(i18n.t('users.deleteConfirm').replace('{name}', u.name))) return;
+      try {
+        await api('DELETE', `/api/users/${u.id}`);
+        showUsers();
+      } catch (ex) {
+        if (ex.data && ex.data.error === 'last_manager') alert(i18n.t('users.lastManager'));
+        else if (ex.data && ex.data.error === 'cannot_delete_self') alert(i18n.t('users.cannotDeleteSelf'));
+        else alert(ex.message);
+      }
+    });
+  }
+  return row;
+}
+
+function showEditUser(u) {
+  state.view = 'edit-user';
+  render('tpl-edit-user');
+  document.querySelector('[data-back]').addEventListener('click', showUsers);
+  document.getElementById('edit-name').value = u.name || '';
+  document.getElementById('edit-email').value = u.email || '';
+  document.getElementById('edit-phone').value = u.phone || '';
+  const roleInput = document.querySelector(`input[name="edit-role"][value="${u.role}"]`);
+  if (roleInput) roleInput.checked = true;
+  const form = document.getElementById('edit-user-form');
+  const err = document.getElementById('edit-user-error');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    const role = form.querySelector('input[name="edit-role"]:checked');
+    const body = {
+      name: document.getElementById('edit-name').value.trim(),
+      email: document.getElementById('edit-email').value.trim(),
+      phone: document.getElementById('edit-phone').value.trim(),
+      role: role ? role.value : u.role
+    };
+    const newPwd = document.getElementById('edit-password').value;
+    if (newPwd) body.password = newPwd;
+    try {
+      const res = await api('PATCH', `/api/users/${u.id}`, body);
+      if (state.user && state.user.id === u.id) {
+        state.user = res.user;
+        updateUserChip();
+      }
+      showUsers();
+    } catch (ex) {
+      if (ex.data && ex.data.error === 'email_taken') err.textContent = i18n.t('signup.emailTaken');
+      else if (ex.data && ex.data.error === 'last_manager') err.textContent = i18n.t('users.lastManager');
+      else if (ex.data && ex.data.error === 'password_too_short') err.textContent = i18n.t('signup.passwordShort');
+      else if (ex.data && ex.data.error === 'email_invalid') err.textContent = i18n.t('signup.invalidEmail');
       else err.textContent = ex.message;
       err.hidden = false;
     }
@@ -630,6 +739,10 @@ $logout.addEventListener('click', async () => {
   showLogin();
 });
 
+$usersBtn.addEventListener('click', () => {
+  if (state.user && state.user.role === 'manager') showUsers();
+});
+
 $lang.value = i18n.lang;
 $lang.addEventListener('change', () => {
   i18n.setLang($lang.value);
@@ -640,6 +753,7 @@ $lang.addEventListener('change', () => {
   else if (state.view === 'detail' && state.carId) showCarDetail(state.carId);
   else if (state.view === 'add') showAddCar();
   else if (state.view === 'signup') showSignup();
+  else if (state.view === 'users') showUsers();
   else showLogin();
 });
 

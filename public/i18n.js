@@ -3,6 +3,7 @@ const I18N = {
     'auth.email': 'Email',
     'auth.password': 'Password',
     'auth.name': 'Name',
+    'auth.phone': 'Phone number',
     'auth.role': 'Role',
 
     'login.title': 'Sign in',
@@ -28,6 +29,18 @@ const I18N = {
     'role.manager': 'Manager',
     'role.sales': 'Sales',
     'role.recon': 'Recon',
+
+    'users.title': 'Users',
+    'users.empty': 'No users.',
+    'users.edit': 'Edit',
+    'users.editTitle': 'Edit user',
+    'users.save': 'Save',
+    'users.newPassword': 'New password (optional)',
+    'users.passwordHint': 'Leave blank to keep the existing password.',
+    'users.deleteConfirm': 'Delete user "{name}"?',
+    'users.lastManager': 'Cannot remove the last manager.',
+    'users.cannotDeleteSelf': 'You cannot delete your own account.',
+    'users.you': 'you',
 
     'common.back': 'Back',
     'common.cancel': 'Cancel',
@@ -94,6 +107,7 @@ const I18N = {
     'auth.email': 'Correo',
     'auth.password': 'Contraseña',
     'auth.name': 'Nombre',
+    'auth.phone': 'Teléfono',
     'auth.role': 'Rol',
 
     'login.title': 'Iniciar sesión',
@@ -119,6 +133,18 @@ const I18N = {
     'role.manager': 'Gerente',
     'role.sales': 'Ventas',
     'role.recon': 'Limpieza',
+
+    'users.title': 'Usuarios',
+    'users.empty': 'Sin usuarios.',
+    'users.edit': 'Editar',
+    'users.editTitle': 'Editar usuario',
+    'users.save': 'Guardar',
+    'users.newPassword': 'Nueva contraseña (opcional)',
+    'users.passwordHint': 'Déjalo en blanco para mantener la contraseña actual.',
+    'users.deleteConfirm': '¿Eliminar al usuario "{name}"?',
+    'users.lastManager': 'No se puede quitar al último gerente.',
+    'users.cannotDeleteSelf': 'No puedes eliminar tu propia cuenta.',
+    'users.you': 'tú',
 
     'common.back': 'Atrás',
     'common.cancel': 'Cancelar',

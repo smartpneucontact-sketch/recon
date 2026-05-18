@@ -47,7 +47,7 @@ const upload = multer({
 
 function loadUser(req, _res, next) {
   if (req.session.userId) {
-    req.user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(req.session.userId) || null;
+    req.user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(req.session.userId) || null;
     if (!req.user) req.session.destroy(() => {});
   }
   next();
@@ -66,13 +66,14 @@ function requireRole(...roles) {
 app.use(loadUser);
 
 function publicUser(u) {
-  return u ? { id: u.id, name: u.name, email: u.email, role: u.role } : null;
+  return u ? { id: u.id, name: u.name, email: u.email, phone: u.phone || null, role: u.role } : null;
 }
 
 /* ---------- Auth ---------- */
 app.post('/api/signup', (req, res) => {
   const name = (req.body.name || '').trim();
   const email = (req.body.email || '').trim().toLowerCase();
+  const phone = (req.body.phone || '').trim();
   const password = req.body.password || '';
   const role = req.body.role;
   if (!name) return res.status(400).json({ error: 'name_required' });
@@ -82,11 +83,11 @@ app.post('/api/signup', (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (existing) return res.status(409).json({ error: 'email_taken' });
   const hash = bcrypt.hashSync(password, 10);
-  const info = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-    .run(name, email, hash, role);
+  const info = db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+    .run(name, email, phone || null, hash, role);
   req.session.userId = info.lastInsertRowid;
-  const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(info.lastInsertRowid);
-  res.status(201).json({ user });
+  const user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(info.lastInsertRowid);
+  res.status(201).json({ user: publicUser(user) });
 });
 
 app.post('/api/login', (req, res) => {
@@ -107,6 +108,76 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   res.json({ user: publicUser(req.user) });
+});
+
+/* ---------- Users (manager only) ---------- */
+app.get('/api/users', requireRole('manager'), (_req, res) => {
+  const users = db.prepare(`
+    SELECT id, name, email, phone, role, created_at
+    FROM users
+    ORDER BY role ASC, name ASC
+  `).all();
+  res.json({ users });
+});
+
+app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+
+  const updates = [];
+  const values = [];
+
+  if (typeof req.body.name === 'string') {
+    const name = req.body.name.trim();
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    updates.push('name = ?'); values.push(name);
+  }
+  if (typeof req.body.email === 'string') {
+    const email = req.body.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'email_invalid' });
+    if (email !== target.email) {
+      const dup = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, id);
+      if (dup) return res.status(409).json({ error: 'email_taken' });
+    }
+    updates.push('email = ?'); values.push(email);
+  }
+  if ('phone' in req.body) {
+    const phone = (req.body.phone || '').toString().trim();
+    updates.push('phone = ?'); values.push(phone || null);
+  }
+  if (typeof req.body.role === 'string') {
+    if (!ROLES.includes(req.body.role)) return res.status(400).json({ error: 'invalid_role' });
+    // Don't allow demoting the last manager
+    if (target.role === 'manager' && req.body.role !== 'manager') {
+      const otherManagers = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'manager' AND id != ?").get(id).n;
+      if (otherManagers === 0) return res.status(400).json({ error: 'last_manager' });
+    }
+    updates.push('role = ?'); values.push(req.body.role);
+  }
+  if (typeof req.body.password === 'string' && req.body.password.length > 0) {
+    if (req.body.password.length < 6) return res.status(400).json({ error: 'password_too_short' });
+    updates.push('password_hash = ?'); values.push(bcrypt.hashSync(req.body.password, 10));
+  }
+
+  if (!updates.length) return res.status(400).json({ error: 'no_changes' });
+  values.push(id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const updated = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(id);
+  res.json({ user: publicUser(updated) });
+});
+
+app.delete('/api/users/:id', requireRole('manager'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (id === req.user.id) return res.status(400).json({ error: 'cannot_delete_self' });
+  const target = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+  if (target.role === 'manager') {
+    const otherManagers = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'manager' AND id != ?").get(id).n;
+    if (otherManagers === 0) return res.status(400).json({ error: 'last_manager' });
+  }
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  res.json({ ok: true });
 });
 
 /* ---------- Cars ---------- */
