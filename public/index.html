@@ -243,18 +243,6 @@
         <button id="delete-car" class="icon-btn danger role-gated" data-roles="manager" hidden aria-label="Delete" title="Delete">🗑</button>
       </div>
 
-      <div id="next-in-line-edit" class="next-edit role-gated" data-roles="manager" hidden>
-        <label class="next-edit-label">
-          <span data-i18n="detail.nextInLine">Next in line</span>
-          <small class="muted" data-i18n="detail.nextInLineHint">Leave blank to use the schedule order.</small>
-        </label>
-        <div class="next-edit-row">
-          <input type="number" id="next-in-line-input" min="1" step="1" inputmode="numeric" data-i18n-placeholder="detail.auto" placeholder="auto" />
-          <button type="button" id="save-next-in-line" class="primary" data-i18n="common.save">Save</button>
-        </div>
-        <p id="next-in-line-msg" class="muted" hidden></p>
-      </div>
-
       <div id="photos" class="photos"></div>
       <p id="no-photos" class="muted center" hidden data-i18n="detail.noPhotos">No photos yet.</p>
 

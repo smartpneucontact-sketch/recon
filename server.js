@@ -230,9 +230,7 @@ app.get('/api/cars', requireAuth, (req, res) => {
     LEFT JOIN users du ON du.id = c.completed_by_user_id
     ${where}
     ORDER BY c.status ASC,
-             (c.next_in_line IS NULL) ASC,
              c.next_in_line ASC,
-             c.scheduled_at ASC,
              c.id ASC
   `).all(...params);
   res.json({ cars });
@@ -262,50 +260,41 @@ app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
   if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {
     return res.status(400).json({ error: 'scheduled_at_required' });
   }
+  const queueRank = new Date(scheduled_at).getTime();
   const info = db.prepare(`
-    INSERT INTO cars (stock_number, category, scheduled_at, created_by_user_id)
-    VALUES (?, ?, ?, ?)
-  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, req.user.id);
+    INSERT INTO cars (stock_number, category, scheduled_at, next_in_line, created_by_user_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, queueRank, req.user.id);
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(info.lastInsertRowid);
   broadcast('car', { id: car.id, category: car.category });
   res.status(201).json({ car });
 });
 
-app.post('/api/cars/reorder', requireRole('manager'), (req, res) => {
-  const { orderedIds } = req.body || {};
-  if (!Array.isArray(orderedIds) || orderedIds.some(id => !Number.isInteger(id))) {
-    return res.status(400).json({ error: 'invalid_ordered_ids' });
-  }
-  if (orderedIds.length === 0) return res.json({ ok: true });
-  const placeholders = orderedIds.map(() => '?').join(',');
-  const existing = db.prepare(`SELECT id FROM cars WHERE id IN (${placeholders})`).all(...orderedIds);
-  if (existing.length !== orderedIds.length) {
-    return res.status(400).json({ error: 'unknown_car_id' });
-  }
-  const upd = db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?');
-  db.transaction(() => {
-    orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id));
-  })();
+app.post('/api/cars/move', requireRole('manager'), (req, res) => {
+  const id = parseInt(req.body.id, 10);
+  const aboveId = req.body.aboveId == null ? null : parseInt(req.body.aboveId, 10);
+  const belowId = req.body.belowId == null ? null : parseInt(req.body.belowId, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid_id' });
+  const moved = db.prepare('SELECT id FROM cars WHERE id = ?').get(id);
+  if (!moved) return res.status(404).json({ error: 'not_found' });
+
+  const rankOf = (rid) => {
+    if (!Number.isInteger(rid)) return null;
+    const r = db.prepare('SELECT next_in_line FROM cars WHERE id = ?').get(rid);
+    return r ? r.next_in_line : null;
+  };
+  const aboveRank = rankOf(aboveId);
+  const belowRank = rankOf(belowId);
+
+  let newRank;
+  if (aboveRank != null && belowRank != null) newRank = (aboveRank + belowRank) / 2;
+  else if (aboveRank != null) newRank = aboveRank + 60000;
+  else if (belowRank != null) newRank = belowRank - 60000;
+  else return res.status(400).json({ error: 'no_neighbors' });
+
+  db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?').run(newRank, id);
   broadcast('cars', {});
   res.json({ ok: true });
-});
-
-app.patch('/api/cars/:id', requireRole('manager'), (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const target = db.prepare('SELECT id, category FROM cars WHERE id = ?').get(id);
-  if (!target) return res.status(404).json({ error: 'not_found' });
-  if (!('next_in_line' in req.body)) return res.status(400).json({ error: 'no_changes' });
-  let val = req.body.next_in_line;
-  if (val === null || val === '' || val === undefined) {
-    val = null;
-  } else {
-    val = parseInt(val, 10);
-    if (!Number.isInteger(val) || val < 1) return res.status(400).json({ error: 'invalid_next_in_line' });
-  }
-  db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?').run(val, id);
-  const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
-  broadcast('car', { id, category: target.category });
-  res.json({ car: updated });
 });
 
 app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {

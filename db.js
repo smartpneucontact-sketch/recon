@@ -77,6 +77,20 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_position ON cars(category,
 if (!columnExists('cars', 'next_in_line')) {
   db.exec('ALTER TABLE cars ADD COLUMN next_in_line INTEGER');
 }
-db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_nextinline ON cars(category, next_in_line)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_cars_nextinline ON cars(next_in_line)');
+
+// Backfill: ensure every car has a numeric rank, defaulting to its scheduled_at as ms.
+const pending = db.prepare(`
+  SELECT id, scheduled_at FROM cars WHERE next_in_line IS NULL AND scheduled_at IS NOT NULL
+`).all();
+if (pending.length) {
+  const upd = db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?');
+  db.transaction(() => {
+    for (const r of pending) {
+      const ms = Date.parse(r.scheduled_at);
+      if (!isNaN(ms)) upd.run(ms, r.id);
+    }
+  })();
+}
 
 module.exports = { db, DATA_DIR, UPLOADS_DIR };

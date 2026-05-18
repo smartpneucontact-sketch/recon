@@ -302,6 +302,14 @@ function renderBoards(cars) {
   const grouped = { __next: cars.slice() };
   for (const cat of CATEGORIES) grouped[cat] = [];
   for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
+  // Per-category columns: fixed sort by creation date (oldest first).
+  for (const cat of CATEGORIES) {
+    grouped[cat].sort((a, b) => {
+      const ta = parseDate(a.created_at)?.getTime() ?? 0;
+      const tb = parseDate(b.created_at)?.getTime() ?? 0;
+      return ta - tb || a.id - b.id;
+    });
+  }
 
   const isManager = state.user && state.user.role === 'manager';
 
@@ -331,19 +339,23 @@ function renderBoards(cars) {
         forceFallback: true,
         fallbackTolerance: 4,
         onStart: () => { state.dragging = true; },
-        onEnd: () => {
+        onEnd: (evt) => {
           state.dragging = false;
-          persistReorder(list);
+          if (evt.oldIndex === evt.newIndex) return;
+          persistMove(list, evt.newIndex);
         }
       });
     }
   }
 }
 
-async function persistReorder(listEl) {
-  const orderedIds = [...listEl.querySelectorAll('[data-car-id]')].map(el => parseInt(el.dataset.carId, 10));
+async function persistMove(listEl, newIndex) {
+  const rows = [...listEl.querySelectorAll('[data-car-id]')];
+  const movedId = parseInt(rows[newIndex].dataset.carId, 10);
+  const aboveId = newIndex > 0 ? parseInt(rows[newIndex - 1].dataset.carId, 10) : null;
+  const belowId = newIndex < rows.length - 1 ? parseInt(rows[newIndex + 1].dataset.carId, 10) : null;
   try {
-    await api('POST', '/api/cars/reorder', { orderedIds });
+    await api('POST', '/api/cars/move', { id: movedId, aboveId, belowId });
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     alert(i18n.t('dashboard.reorderError'));
@@ -362,16 +374,12 @@ function renderCarRow(c, opts) {
     : `${c.photo_count} ${c.photo_count === 1 ? i18n.t('dashboard.photo') : i18n.t('dashboard.photos')}`;
   const scheduleText = fmtSchedule(c.scheduled_at);
   const completedText = c.completed_at ? fmtDateShort(c.completed_at) : '';
-  const pinBadge = (c.next_in_line != null)
-    ? `<span class="pin-badge" title="${escapeAttr(i18n.t('detail.nextInLine'))}">#${escapeHtml(String(c.next_in_line))}</span>`
-    : '';
   const categoryBadge = showCategory
     ? `<span class="badge ${c.category}">${escapeHtml(i18n.t('category.' + c.category))}</span>`
     : '';
   row.innerHTML = `
     <div class="left">
       <div class="stock-line">
-        ${pinBadge}
         <span class="stock">${escapeHtml(c.stock_number)}</span>
         ${categoryBadge}
       </div>
@@ -640,7 +648,6 @@ async function showCarDetail(id) {
       });
     }
     if (canWrite) setupUpload(id);
-    if (isManager) setupNextInLine(car);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     $app.innerHTML = `<p class="error">${ex.message}</p>`;
@@ -705,41 +712,6 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
-
-function setupNextInLine(car) {
-  const input = document.getElementById('next-in-line-input');
-  const btn = document.getElementById('save-next-in-line');
-  const msg = document.getElementById('next-in-line-msg');
-  if (!input || !btn) return;
-  input.value = car.next_in_line == null ? '' : String(car.next_in_line);
-  msg.hidden = true;
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    msg.hidden = true;
-    const raw = input.value.trim();
-    const payload = { next_in_line: raw === '' ? null : parseInt(raw, 10) };
-    if (raw !== '' && (!Number.isInteger(payload.next_in_line) || payload.next_in_line < 1)) {
-      msg.textContent = i18n.t('detail.nextInLineInvalid');
-      msg.className = 'error';
-      msg.hidden = false;
-      btn.disabled = false;
-      return;
-    }
-    try {
-      await api('PATCH', `/api/cars/${car.id}`, payload);
-      msg.textContent = i18n.t('detail.nextInLineSaved');
-      msg.className = 'muted';
-      msg.hidden = false;
-    } catch (ex) {
-      if (ex.status === 401) return showLogin();
-      msg.textContent = ex.message || i18n.t('detail.nextInLineError');
-      msg.className = 'error';
-      msg.hidden = false;
-    } finally {
-      btn.disabled = false;
-    }
-  });
-}
 
 function setupUpload(carId) {
   const input = document.getElementById('photo-input');
