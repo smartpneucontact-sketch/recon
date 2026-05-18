@@ -3,7 +3,11 @@ const state = {
   view: 'login',
   carId: null,
   filter: { status: 'pending' },
-  sortables: []
+  sortables: [],
+  dragging: false,
+  uploadOpen: false,
+  liveSource: null,
+  refreshTimer: null
 };
 const CATEGORIES = ['delivery', 'trade_auction', 'service'];
 
@@ -36,6 +40,54 @@ function api(method, url, body, isForm) {
   });
 }
 function safeJson(t) { try { return JSON.parse(t); } catch { return null; } }
+
+/* ---------- LIVE UPDATES (Server-Sent Events) ---------- */
+function startLiveUpdates() {
+  if (state.liveSource) return;
+  try {
+    const es = new EventSource('/api/events');
+    es.addEventListener('change', (e) => {
+      let payload = {};
+      try { payload = JSON.parse(e.data); } catch {}
+      scheduleLiveRefresh(payload);
+    });
+    es.addEventListener('hello', () => setLiveIndicator(true));
+    es.onerror = () => setLiveIndicator(false);
+    state.liveSource = es;
+  } catch {}
+}
+function stopLiveUpdates() {
+  if (state.liveSource) { state.liveSource.close(); state.liveSource = null; }
+  if (state.refreshTimer) { clearTimeout(state.refreshTimer); state.refreshTimer = null; }
+  setLiveIndicator(false);
+}
+function scheduleLiveRefresh(payload) {
+  if (state.refreshTimer) clearTimeout(state.refreshTimer);
+  state.refreshTimer = setTimeout(() => {
+    state.refreshTimer = null;
+    applyLiveRefresh(payload);
+  }, 350);
+}
+function applyLiveRefresh(payload) {
+  if (state.dragging) return; // never yank the list out from under a drag
+  if (state.view === 'dashboard') {
+    loadCars();
+    return;
+  }
+  if (state.view === 'detail' && state.carId && !state.uploadOpen) {
+    if (!payload || !payload.car_id || payload.car_id === state.carId || payload.id === state.carId) {
+      showCarDetail(state.carId);
+    }
+    return;
+  }
+  if (state.view === 'users' && payload && payload.type === 'user') {
+    showUsers();
+  }
+}
+function setLiveIndicator(on) {
+  const dot = document.getElementById('live-dot');
+  if (dot) dot.classList.toggle('on', !!on);
+}
 
 function uploadWithProgress(url, formData, onProgress) {
   return new Promise((resolve, reject) => {
@@ -139,6 +191,7 @@ function fmtDuration(ms) {
 function showLogin() {
   state.view = 'login';
   state.user = null;
+  stopLiveUpdates();
   updateUserChip();
   render('tpl-login');
   const form = document.getElementById('login-form');
@@ -154,6 +207,7 @@ function showLogin() {
       const res = await api('POST', '/api/login', { email: email.value.trim(), password: pwd.value });
       state.user = res.user;
       updateUserChip();
+      startLiveUpdates();
       showDashboard();
     } catch (ex) {
       err.textContent = ex.status === 401 ? i18n.t('login.invalid') : i18n.t('login.error');
@@ -192,6 +246,7 @@ function showSignup() {
       });
       state.user = res.user;
       updateUserChip();
+      startLiveUpdates();
       showDashboard();
     } catch (ex) {
       if (ex.status === 409) err.textContent = i18n.t('signup.emailTaken');
@@ -277,7 +332,11 @@ function renderBoards(cars) {
         dragClass: 'sortable-drag',
         forceFallback: true,
         fallbackTolerance: 4,
-        onEnd: () => persistOrder(cat, list)
+        onStart: () => { state.dragging = true; },
+        onEnd: () => {
+          state.dragging = false;
+          persistOrder(cat, list);
+        }
       });
       state.sortables.push(sortable);
     }
@@ -484,6 +543,7 @@ function showEditUser(u) {
 async function showCarDetail(id) {
   state.view = 'detail';
   state.carId = id;
+  state.uploadOpen = false;
   render('tpl-car-detail');
   document.querySelector('[data-back]').addEventListener('click', showDashboard);
 
@@ -659,7 +719,7 @@ function setupUpload(carId) {
     progress.hidden = true;
     bar.style.width = '0%';
     preview.hidden = false;
-    // Scroll preview into view on mobile
+    state.uploadOpen = true;
     setTimeout(() => preview.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   });
   cancel.addEventListener('click', () => {
@@ -668,6 +728,7 @@ function setupUpload(carId) {
     preview.hidden = true;
     progress.hidden = true;
     bar.style.width = '0%';
+    state.uploadOpen = false;
   });
   confirmBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
@@ -688,6 +749,7 @@ function setupUpload(carId) {
       preview.hidden = true;
       input.value = '';
       selectedFile = null;
+      state.uploadOpen = false;
       showCarDetail(carId);
     } catch (ex) {
       err.textContent = (ex && ex.message) || i18n.t('detail.uploadError');
@@ -738,6 +800,7 @@ $logout.title = i18n.t('common.logout');
 $logout.setAttribute('aria-label', i18n.t('common.logout'));
 $logout.addEventListener('click', async () => {
   if (!confirm(i18n.t('common.logoutConfirm'))) return;
+  stopLiveUpdates();
   await api('POST', '/api/logout');
   state.user = null;
   showLogin();
@@ -769,8 +832,10 @@ i18n.apply(document);
     const me = await api('GET', '/api/me');
     state.user = me.user;
     updateUserChip();
-    if (me.user) showDashboard();
-    else showLogin();
+    if (me.user) {
+      startLiveUpdates();
+      showDashboard();
+    } else showLogin();
   } catch {
     showLogin();
   }

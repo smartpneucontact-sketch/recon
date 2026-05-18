@@ -45,6 +45,15 @@ const upload = multer({
   }
 });
 
+/* ---------- Server-Sent Events (live updates) ---------- */
+const sseClients = new Set();
+function broadcast(type, payload) {
+  const data = `event: change\ndata: ${JSON.stringify({ type, ...payload })}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(data); } catch { sseClients.delete(res); }
+  }
+}
+
 function loadUser(req, _res, next) {
   if (req.session.userId) {
     req.user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(req.session.userId) || null;
@@ -110,6 +119,23 @@ app.get('/api/me', (req, res) => {
   res.json({ user: publicUser(req.user) });
 });
 
+app.get('/api/events', requireAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  res.write(`event: hello\ndata: {"ts":${Date.now()}}\n\n`);
+  sseClients.add(res);
+  const heartbeat = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch {}
+  }, 25000);
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(res);
+  });
+});
+
 /* ---------- Users (manager only) ---------- */
 app.get('/api/users', requireRole('manager'), (_req, res) => {
   const users = db.prepare(`
@@ -164,6 +190,7 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
   values.push(id);
   db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   const updated = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(id);
+  broadcast('user', { id });
   res.json({ user: publicUser(updated) });
 });
 
@@ -177,6 +204,7 @@ app.delete('/api/users/:id', requireRole('manager'), (req, res) => {
     if (otherManagers === 0) return res.status(400).json({ error: 'last_manager' });
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  broadcast('user', { id });
   res.json({ ok: true });
 });
 
@@ -260,6 +288,7 @@ app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
     return info.lastInsertRowid;
   })();
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(insertId);
+  broadcast('car', { id: car.id, category: car.category });
   res.status(201).json({ car });
 });
 
@@ -281,13 +310,16 @@ app.post('/api/cars/reorder', requireRole('manager'), (req, res) => {
     orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id, category));
   });
   tx();
+  broadcast('cars', { category });
   res.json({ ok: true });
 });
 
 app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {
   const photos = db.prepare('SELECT filename FROM photos WHERE car_id = ?').all(req.params.id);
+  const target = db.prepare('SELECT id, category FROM cars WHERE id = ?').get(req.params.id);
   db.prepare('DELETE FROM cars WHERE id = ?').run(req.params.id);
   for (const p of photos) fs.unlink(path.join(UPLOADS_DIR, p.filename), () => {});
+  if (target) broadcast('car', { id: target.id, category: target.category, deleted: true });
   res.json({ ok: true });
 });
 
@@ -302,6 +334,7 @@ app.post('/api/cars/:id/photos', requireRole('manager', 'sales'), upload.single(
   const info = db.prepare('INSERT INTO photos (car_id, filename, note) VALUES (?, ?, ?)')
     .run(car.id, req.file.filename, note);
   const photo = db.prepare('SELECT id, filename, note, created_at FROM photos WHERE id = ?').get(info.lastInsertRowid);
+  broadcast('photos', { car_id: car.id });
   res.status(201).json({ photo });
 });
 
@@ -310,6 +343,7 @@ app.delete('/api/photos/:id', requireRole('manager'), (req, res) => {
   if (!photo) return res.status(404).json({ error: 'not_found' });
   db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
   fs.unlink(path.join(UPLOADS_DIR, photo.filename), () => {});
+  broadcast('photos', { car_id: photo.car_id });
   res.json({ ok: true });
 });
 
@@ -320,6 +354,7 @@ app.post('/api/cars/:id/complete', requireRole('manager', 'recon'), (req, res) =
   db.prepare("UPDATE cars SET status = 'completed', completed_at = datetime('now'), completed_by_user_id = ? WHERE id = ?")
     .run(req.user.id, car.id);
   const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(car.id);
+  broadcast('car', { id: updated.id, category: updated.category });
   res.json({ car: updated });
 });
 
@@ -329,6 +364,7 @@ app.post('/api/cars/:id/reopen', requireRole('manager'), (req, res) => {
   db.prepare("UPDATE cars SET status = 'pending', completed_at = NULL, completed_by_user_id = NULL WHERE id = ?")
     .run(car.id);
   const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(car.id);
+  broadcast('car', { id: updated.id, category: updated.category });
   res.json({ car: updated });
 });
 

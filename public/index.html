@@ -25,7 +25,10 @@
     <div class="topbar-right">
       <span id="user-chip" class="user-chip" hidden>
         <span class="user-name" id="user-name"></span>
-        <span class="user-role" id="user-role"></span>
+        <span class="user-role-wrap">
+          <span id="live-dot" class="live-dot" title="Live updates"></span>
+          <span class="user-role" id="user-role"></span>
+        </span>
       </span>
       <button id="users-btn" class="ghost-on-dark role-gated" data-roles="manager" hidden aria-label="Users" title="Users">👥</button>
       <select id="lang-select" aria-label="Language">
