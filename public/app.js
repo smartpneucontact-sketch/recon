@@ -302,17 +302,16 @@ function renderCarRow(c) {
   const photoLabel = c.photo_count === 0
     ? i18n.t('dashboard.noPhotos')
     : `${c.photo_count} ${c.photo_count === 1 ? i18n.t('dashboard.photo') : i18n.t('dashboard.photos')}`;
-  const scheduleIcon = c.status === 'completed' ? '✓' : '📅';
-  const scheduleDate = c.status === 'completed' && c.completed_at
-    ? fmtDateShort(c.completed_at)
-    : fmtSchedule(c.scheduled_at);
+  const scheduleText = fmtSchedule(c.scheduled_at);
+  const completedText = c.completed_at ? fmtDateShort(c.completed_at) : '';
   const isManager = state.user && state.user.role === 'manager';
   row.innerHTML = `
     <div class="left">
       <div class="stock">${escapeHtml(c.stock_number)}</div>
+      ${scheduleText ? `<div class="schedule-line">📅 ${escapeHtml(scheduleText)}</div>` : ''}
       <div class="sub">
-        <span class="row-date">${scheduleIcon} ${escapeHtml(scheduleDate)}</span>
         <span class="photo-count">📷 ${escapeHtml(photoLabel)}</span>
+        ${c.status === 'completed' && completedText ? `<span class="row-date">✓ ${escapeHtml(completedText)}</span>` : ''}
       </div>
     </div>
     <div class="right">

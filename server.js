@@ -4,7 +4,7 @@ const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
-const { db, UPLOADS_DIR } = require('./db');
+const { db, DATA_DIR, UPLOADS_DIR } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
@@ -230,12 +230,36 @@ app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
   if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {
     return res.status(400).json({ error: 'scheduled_at_required' });
   }
-  const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) AS m FROM cars WHERE category = ?').get(category).m;
-  const info = db.prepare(`
-    INSERT INTO cars (stock_number, category, scheduled_at, position, created_by_user_id)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, maxPos + 10, req.user.id);
-  const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(info.lastInsertRowid);
+
+  // Slot the new car into the pending queue by scheduled_at:
+  // find the first pending car in the same category scheduled later than this one,
+  // shift it (and everything after it) down, and insert at its old position.
+  const insertId = db.transaction(() => {
+    const later = db.prepare(`
+      SELECT position FROM cars
+      WHERE category = ? AND status = 'pending' AND scheduled_at > ?
+      ORDER BY position ASC LIMIT 1
+    `).get(category, scheduled_at);
+    let newPosition;
+    if (later) {
+      db.prepare(`
+        UPDATE cars SET position = position + 10
+        WHERE category = ? AND status = 'pending' AND position >= ?
+      `).run(category, later.position);
+      newPosition = later.position;
+    } else {
+      const maxPos = db.prepare(
+        "SELECT COALESCE(MAX(position), 0) AS m FROM cars WHERE category = ? AND status = 'pending'"
+      ).get(category).m;
+      newPosition = maxPos + 10;
+    }
+    const info = db.prepare(`
+      INSERT INTO cars (stock_number, category, scheduled_at, position, created_by_user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(stock_number.trim().toUpperCase(), category, scheduled_at, newPosition, req.user.id);
+    return info.lastInsertRowid;
+  })();
+  const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(insertId);
   res.status(201).json({ car });
 });
 
@@ -332,5 +356,11 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
+  const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  const carCount = db.prepare('SELECT COUNT(*) AS n FROM cars').get().n;
   console.log(`Recon app listening on port ${PORT}`);
+  console.log(`DATA_DIR=${DATA_DIR}  users=${userCount}  cars=${carCount}`);
+  if (!process.env.DATA_DIR) {
+    console.warn('WARNING: DATA_DIR env var is not set — falling back to ./data inside the container, which will NOT persist across redeploys. On Railway, mount a volume at /data and set DATA_DIR=/data.');
+  }
 });
