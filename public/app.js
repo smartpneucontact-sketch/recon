@@ -2,8 +2,10 @@ const state = {
   user: null,
   view: 'login',
   carId: null,
-  filter: { status: 'pending', category: 'all' }
+  filter: { status: 'pending' },
+  sortables: []
 };
+const CATEGORIES = ['delivery', 'trade_auction', 'service'];
 
 const $app = document.getElementById('app');
 const $logout = document.getElementById('logout-btn');
@@ -195,6 +197,7 @@ function showSignup() {
 async function showDashboard() {
   state.view = 'dashboard';
   state.carId = null;
+  destroySortables();
   updateUserChip();
   render('tpl-dashboard');
 
@@ -206,14 +209,6 @@ async function showDashboard() {
       loadCars();
     });
   });
-  document.querySelectorAll('#category-filter button').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.category === state.filter.category);
-    btn.addEventListener('click', () => {
-      state.filter.category = btn.dataset.category;
-      document.querySelectorAll('#category-filter button').forEach(b => b.classList.toggle('active', b === btn));
-      loadCars();
-    });
-  });
 
   const addBtn = document.getElementById('add-car-btn');
   if (addBtn) addBtn.addEventListener('click', showAddCar);
@@ -221,53 +216,113 @@ async function showDashboard() {
   await loadCars();
 }
 
+function destroySortables() {
+  for (const s of state.sortables) { try { s.destroy(); } catch {} }
+  state.sortables = [];
+}
+
 async function loadCars() {
-  const list = document.getElementById('car-list');
-  const empty = document.getElementById('empty-state');
-  list.innerHTML = `<p class="muted center">${i18n.t('common.loading')}</p>`;
+  document.querySelectorAll('[data-board-list]').forEach(el => {
+    el.innerHTML = `<p class="muted center">${i18n.t('common.loading')}</p>`;
+  });
   try {
     const params = new URLSearchParams();
     if (state.filter.status !== 'all') params.set('status', state.filter.status);
-    if (state.filter.category !== 'all') params.set('category', state.filter.category);
     const { cars } = await api('GET', `/api/cars?${params}`);
-    if (!cars.length) {
-      list.innerHTML = '';
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-    list.innerHTML = '';
-    for (const c of cars) list.appendChild(renderCarRow(c));
+    renderBoards(cars);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
-    list.innerHTML = `<p class="error">${ex.message}</p>`;
+    document.querySelectorAll('[data-board-list]').forEach(el => {
+      el.innerHTML = `<p class="error">${escapeHtml(ex.message)}</p>`;
+    });
+  }
+}
+
+function renderBoards(cars) {
+  destroySortables();
+  const grouped = {};
+  for (const cat of CATEGORIES) grouped[cat] = [];
+  for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
+
+  for (const board of document.querySelectorAll('.board')) {
+    const cat = board.dataset.category;
+    const list = board.querySelector('[data-board-list]');
+    const empty = board.querySelector('[data-board-empty]');
+    const count = board.querySelector('[data-board-count]');
+    list.innerHTML = '';
+    const items = grouped[cat];
+    count.textContent = items.length ? String(items.length) : '';
+    if (!items.length) {
+      empty.hidden = false;
+    } else {
+      empty.hidden = true;
+      for (const c of items) list.appendChild(renderCarRow(c));
+    }
+    if (state.user && state.user.role === 'manager' && typeof Sortable !== 'undefined') {
+      const sortable = Sortable.create(list, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        forceFallback: true,
+        fallbackTolerance: 4,
+        onEnd: () => persistOrder(cat, list)
+      });
+      state.sortables.push(sortable);
+    }
+  }
+}
+
+async function persistOrder(category, listEl) {
+  const orderedIds = [...listEl.querySelectorAll('[data-car-id]')].map(el => parseInt(el.dataset.carId, 10));
+  try {
+    await api('POST', '/api/cars/reorder', { category, orderedIds });
+  } catch (ex) {
+    if (ex.status === 401) return showLogin();
+    alert(i18n.t('dashboard.reorderError'));
+    loadCars();
   }
 }
 
 function renderCarRow(c) {
   const row = document.createElement('div');
   row.className = 'car-row';
+  row.dataset.carId = c.id;
   const photoLabel = c.photo_count === 0
     ? i18n.t('dashboard.noPhotos')
     : `${c.photo_count} ${c.photo_count === 1 ? i18n.t('dashboard.photo') : i18n.t('dashboard.photos')}`;
-  const dateLabel = c.status === 'completed' && c.completed_at
-    ? `✓ ${fmtDateShort(c.completed_at)}`
-    : `📅 ${fmtDateShort(c.created_at)}`;
+  const scheduleIcon = c.status === 'completed' ? '✓' : '📅';
+  const scheduleDate = c.status === 'completed' && c.completed_at
+    ? fmtDateShort(c.completed_at)
+    : fmtSchedule(c.scheduled_at);
+  const isManager = state.user && state.user.role === 'manager';
   row.innerHTML = `
     <div class="left">
       <div class="stock">${escapeHtml(c.stock_number)}</div>
       <div class="sub">
-        <span class="badge ${c.category}">${i18n.t('category.' + c.category)}</span>
-        <span class="photo-count">📷 ${photoLabel}</span>
-        <span class="row-date">${dateLabel}</span>
+        <span class="row-date">${scheduleIcon} ${escapeHtml(scheduleDate)}</span>
+        <span class="photo-count">📷 ${escapeHtml(photoLabel)}</span>
       </div>
     </div>
     <div class="right">
       <span class="status-pill ${c.status}">${i18n.t('status.' + c.status)}</span>
+      ${isManager ? `<button class="drag-handle" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button>` : ''}
     </div>
   `;
-  row.addEventListener('click', () => showCarDetail(c.id));
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.drag-handle')) return;
+    showCarDetail(c.id);
+  });
   return row;
+}
+
+function fmtSchedule(s) {
+  const d = parseDate(s);
+  if (!d) return '';
+  return d.toLocaleString(i18n.lang === 'es' ? 'es' : 'en', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
 }
 
 /* ---------- ADD CAR ---------- */
@@ -277,19 +332,36 @@ function showAddCar() {
   document.querySelector('[data-back]').addEventListener('click', showDashboard);
   const form = document.getElementById('add-car-form');
   const err = document.getElementById('add-car-error');
+  const schedInput = document.getElementById('scheduled-at');
+  // Default to "now, rounded to next 15 min" for convenience
+  const now = new Date();
+  now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+  const pad = n => String(n).padStart(2, '0');
+  schedInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  schedInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00`;
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
     const stock_number = document.getElementById('stock-number').value.trim();
     const cat = form.querySelector('input[name="category"]:checked');
+    const sched = schedInput.value;
     if (!stock_number) { err.textContent = i18n.t('addCar.stockRequired'); err.hidden = false; return; }
+    if (!sched) { err.textContent = i18n.t('addCar.scheduleRequired'); err.hidden = false; return; }
     if (!cat) { err.textContent = i18n.t('addCar.categoryRequired'); err.hidden = false; return; }
+    let scheduled_at;
     try {
-      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value });
+      scheduled_at = new Date(sched).toISOString();
+    } catch {
+      err.textContent = i18n.t('addCar.scheduleInvalid'); err.hidden = false; return;
+    }
+    try {
+      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value, scheduled_at });
       showCarDetail(car.id);
     } catch (ex) {
       if (ex.status === 401) return showLogin();
-      err.textContent = ex.message;
+      if (ex.data && ex.data.error === 'scheduled_at_required') err.textContent = i18n.t('addCar.scheduleRequired');
+      else err.textContent = ex.message;
       err.hidden = false;
     }
   });
@@ -319,6 +391,9 @@ async function showCarDetail(id) {
     const rows = [
       { label: i18n.t('detail.orderedAt'), value: orderedValue }
     ];
+    if (car.scheduled_at) {
+      rows.push({ label: i18n.t('detail.scheduledAt'), value: fmtDate(car.scheduled_at) });
+    }
     if (car.completed_at) {
       const finishedValue = car.completed_by_name
         ? `${fmtDate(car.completed_at)} · ${car.completed_by_name}`

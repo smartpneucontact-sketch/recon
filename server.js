@@ -130,7 +130,7 @@ app.get('/api/cars', requireAuth, (req, res) => {
     LEFT JOIN users cu ON cu.id = c.created_by_user_id
     LEFT JOIN users du ON du.id = c.completed_by_user_id
     ${where}
-    ORDER BY c.status ASC, c.created_at DESC
+    ORDER BY c.category ASC, c.status ASC, c.position ASC, c.scheduled_at ASC
   `).all(...params);
   res.json({ cars });
 });
@@ -151,15 +151,42 @@ app.get('/api/cars/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
-  const { stock_number, category } = req.body || {};
+  const { stock_number, category, scheduled_at } = req.body || {};
   if (!stock_number || !stock_number.trim()) return res.status(400).json({ error: 'stock_number_required' });
   if (!['delivery', 'trade_auction', 'service'].includes(category)) {
     return res.status(400).json({ error: 'invalid_category' });
   }
-  const info = db.prepare('INSERT INTO cars (stock_number, category, created_by_user_id) VALUES (?, ?, ?)')
-    .run(stock_number.trim().toUpperCase(), category, req.user.id);
+  if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {
+    return res.status(400).json({ error: 'scheduled_at_required' });
+  }
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) AS m FROM cars WHERE category = ?').get(category).m;
+  const info = db.prepare(`
+    INSERT INTO cars (stock_number, category, scheduled_at, position, created_by_user_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, maxPos + 10, req.user.id);
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ car });
+});
+
+app.post('/api/cars/reorder', requireRole('manager'), (req, res) => {
+  const { category, orderedIds } = req.body || {};
+  if (!['delivery', 'trade_auction', 'service'].includes(category)) {
+    return res.status(400).json({ error: 'invalid_category' });
+  }
+  if (!Array.isArray(orderedIds) || orderedIds.some(id => !Number.isInteger(id))) {
+    return res.status(400).json({ error: 'invalid_ordered_ids' });
+  }
+  const existing = db.prepare('SELECT id FROM cars WHERE category = ?').all(category).map(r => r.id);
+  const existingSet = new Set(existing);
+  if (orderedIds.some(id => !existingSet.has(id))) {
+    return res.status(400).json({ error: 'unknown_car_id' });
+  }
+  const upd = db.prepare('UPDATE cars SET position = ? WHERE id = ? AND category = ?');
+  const tx = db.transaction(() => {
+    orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id, category));
+  });
+  tx();
+  res.json({ ok: true });
 });
 
 app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {
@@ -214,6 +241,14 @@ app.use('/uploads', requireAuth, express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true
 }));
+
+app.get('/vendor/sortable.min.js', (_req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, 'node_modules', 'sortablejs', 'Sortable.min.js'), {
+    maxAge: '30d',
+    immutable: true
+  });
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 

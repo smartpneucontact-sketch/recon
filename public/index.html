@@ -120,12 +120,6 @@
           <button data-status="completed" data-i18n="filter.completed">Completed</button>
           <button data-status="all" data-i18n="filter.all">All</button>
         </div>
-        <div class="seg" role="tablist" id="category-filter">
-          <button data-category="all" class="active" data-i18n="filter.allCategories">All</button>
-          <button data-category="delivery" data-i18n="category.delivery">Delivery</button>
-          <button data-category="trade_auction" data-i18n="category.trade_auction">Trade Auction</button>
-          <button data-category="service" data-i18n="category.service">Service</button>
-        </div>
       </div>
 
       <div id="manager-actions" class="role-gated" data-roles="manager,sales" hidden>
@@ -134,8 +128,41 @@
         </button>
       </div>
 
-      <div id="car-list" class="car-list"></div>
-      <p id="empty-state" class="muted center" hidden data-i18n="dashboard.empty">No vehicles to show.</p>
+      <div class="boards">
+        <section class="board" data-category="delivery">
+          <header class="board-header">
+            <span class="board-title delivery">
+              <span class="board-icon">🚗</span>
+              <span data-i18n="category.delivery">Delivery</span>
+            </span>
+            <span class="board-count" data-board-count></span>
+          </header>
+          <div class="board-list" data-board-list></div>
+          <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
+        </section>
+        <section class="board" data-category="trade_auction">
+          <header class="board-header">
+            <span class="board-title trade_auction">
+              <span class="board-icon">🏷️</span>
+              <span data-i18n="category.trade_auction">Trade Auction</span>
+            </span>
+            <span class="board-count" data-board-count></span>
+          </header>
+          <div class="board-list" data-board-list></div>
+          <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
+        </section>
+        <section class="board" data-category="service">
+          <header class="board-header">
+            <span class="board-title service">
+              <span class="board-icon">🔧</span>
+              <span data-i18n="category.service">Service</span>
+            </span>
+            <span class="board-count" data-board-count></span>
+          </header>
+          <div class="board-list" data-board-list></div>
+          <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
+        </section>
+      </div>
     </section>
   </template>
 
@@ -147,6 +174,10 @@
         <label>
           <span data-i18n="addCar.stock">Stock number</span>
           <input id="stock-number" type="text" required autocapitalize="characters" autocomplete="off" inputmode="text" enterkeyhint="next" />
+        </label>
+        <label>
+          <span data-i18n="addCar.scheduled">Scheduled date and time</span>
+          <input id="scheduled-at" type="datetime-local" required />
         </label>
         <fieldset class="cat-picker">
           <legend data-i18n="addCar.category">Category</legend>
@@ -233,6 +264,7 @@
   </div>
 
   <script src="/i18n.js"></script>
-  <script src="/app.js"></script>
+  <script src="/vendor/sortable.min.js" defer></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

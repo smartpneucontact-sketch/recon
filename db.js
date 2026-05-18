@@ -54,5 +54,21 @@ if (!columnExists('cars', 'created_by_user_id')) {
 if (!columnExists('cars', 'completed_by_user_id')) {
   db.exec('ALTER TABLE cars ADD COLUMN completed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
+if (!columnExists('cars', 'scheduled_at')) {
+  db.exec('ALTER TABLE cars ADD COLUMN scheduled_at TEXT');
+  db.exec("UPDATE cars SET scheduled_at = created_at WHERE scheduled_at IS NULL");
+}
+if (!columnExists('cars', 'position')) {
+  db.exec('ALTER TABLE cars ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  for (const cat of ['delivery', 'trade_auction', 'service']) {
+    const rows = db.prepare('SELECT id FROM cars WHERE category = ? ORDER BY scheduled_at ASC, id ASC').all(cat);
+    const upd = db.prepare('UPDATE cars SET position = ? WHERE id = ?');
+    const tx = db.transaction(() => {
+      rows.forEach((r, i) => upd.run((i + 1) * 10, r.id));
+    });
+    tx();
+  }
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_position ON cars(category, position)');
 
 module.exports = { db, DATA_DIR, UPLOADS_DIR };
