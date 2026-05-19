@@ -9,7 +9,7 @@ const { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta } = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
-const ROLES = ['manager', 'sales', 'recon'];
+const ROLES = ['manager', 'sales', 'service_advisor', 'recon'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const app = express();
@@ -322,7 +322,7 @@ app.get('/api/cars/:id', requireAuth, (req, res) => {
   res.json({ car, photos });
 });
 
-app.post('/api/cars', requireRole('manager', 'sales'), (req, res) => {
+app.post('/api/cars', requireRole('manager', 'sales', 'service_advisor'), (req, res) => {
   const { stock_number, category, scheduled_at } = req.body || {};
   if (!stock_number || !stock_number.trim()) return res.status(400).json({ error: 'stock_number_required' });
   if (!['delivery', 'trade_auction', 'service'].includes(category)) {
@@ -368,7 +368,7 @@ app.post('/api/cars/move', requireRole('manager'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/cars/:id/urgent', requireRole('manager', 'sales'), async (req, res) => {
+app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_advisor'), async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
   if (!car) return res.status(404).json({ error: 'not_found' });
@@ -408,7 +408,7 @@ app.delete('/api/cars/:id', requireRole('manager'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/cars/:id/photos', requireRole('manager', 'sales'), upload.single('photo'), (req, res) => {
+app.post('/api/cars/:id/photos', requireRole('manager', 'sales', 'service_advisor'), upload.single('photo'), (req, res) => {
   const car = db.prepare('SELECT id FROM cars WHERE id = ?').get(req.params.id);
   if (!car) {
     if (req.file) fs.unlink(req.file.path, () => {});

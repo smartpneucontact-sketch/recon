@@ -28,6 +28,7 @@ const I18N = {
 
     'role.manager': 'Manager',
     'role.sales': 'Sales',
+    'role.service_advisor': 'Service Advisor',
     'role.recon': 'Recon',
 
     'users.title': 'Users',
@@ -151,6 +152,7 @@ const I18N = {
 
     'role.manager': 'Gerente',
     'role.sales': 'Ventas',
+    'role.service_advisor': 'Asesor de servicio',
     'role.recon': 'Limpieza',
 
     'users.title': 'Usuarios',

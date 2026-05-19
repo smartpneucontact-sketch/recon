@@ -805,6 +805,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .user-actions button { min-height: 40px; padding: 8px 14px; font-size: 13px; }
 .badge.manager { background: #ede9fe; color: #5b21b6; border-color: #d8c9fb; }
 .badge.sales { background: #e7f0ff; color: #1d4ed8; border-color: #c7dbff; }
+.badge.service_advisor { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .badge.recon { background: #ecfdf5; color: #166534; border-color: #c7ecd5; }
 @media (max-width: 520px) {
   .user-actions { width: 100%; }
@@ -987,7 +988,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 
 /* Tablet+ refinements */
 @media (min-width: 600px) {
-  .cat-picker { grid-template-columns: 1fr 1fr 1fr; }
+  .cat-picker { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
   .cat-tile { flex-direction: column; text-align: center; padding: 18px 10px; gap: 8px; }
   .cat-icon { font-size: 30px; }
 }

@@ -726,7 +726,7 @@ async function showCarDetail(id) {
     const stickyAction = document.getElementById('sticky-action');
 
     const role = state.user && state.user.role;
-    const canWrite = role === 'manager' || role === 'sales';
+    const canWrite = role === 'manager' || role === 'sales' || role === 'service_advisor';
     const canComplete = role === 'manager' || role === 'recon';
     const isManager = role === 'manager';
 

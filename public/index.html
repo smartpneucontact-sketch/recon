@@ -120,6 +120,13 @@
             </span>
           </label>
           <label class="cat-card">
+            <input type="radio" name="signup-role" value="service_advisor" />
+            <span class="cat-tile">
+              <span class="cat-icon">🛠️</span>
+              <span class="cat-label" data-i18n="role.service_advisor">Service Advisor</span>
+            </span>
+          </label>
+          <label class="cat-card">
             <input type="radio" name="signup-role" value="recon" />
             <span class="cat-tile">
               <span class="cat-icon">🧽</span>
@@ -147,7 +154,7 @@
         </div>
       </div>
 
-      <div id="manager-actions" class="role-gated" data-roles="manager,sales" hidden>
+      <div id="manager-actions" class="role-gated" data-roles="manager,sales,service_advisor" hidden>
         <button id="add-car-btn" class="primary block">
           <span>+ </span><span data-i18n="dashboard.addCar">Add vehicle</span>
         </button>
@@ -266,7 +273,7 @@
         <span id="urgent-meta" class="muted"></span>
       </div>
 
-      <div class="urgent-controls role-gated" data-roles="manager,sales" hidden>
+      <div class="urgent-controls role-gated" data-roles="manager,sales,service_advisor" hidden>
         <button id="urgent-toggle" class="urgent-btn" type="button">
           <span class="urgent-bolt" aria-hidden="true">🚨</span>
           <span id="urgent-toggle-label" data-i18n="detail.markUrgent">Mark as urgent</span>
@@ -276,7 +283,7 @@
       <div id="photos" class="photos"></div>
       <p id="no-photos" class="muted center" hidden data-i18n="detail.noPhotos">No photos yet.</p>
 
-      <div class="role-gated" data-roles="manager,sales" id="upload-zone" hidden>
+      <div class="role-gated" data-roles="manager,sales,service_advisor" id="upload-zone" hidden>
         <label class="upload">
           <input id="photo-input" type="file" accept="image/*" capture="environment" />
           <span class="upload-cta">
@@ -343,6 +350,10 @@
           <label class="cat-card">
             <input type="radio" name="edit-role" value="sales" />
             <span class="cat-tile"><span class="cat-icon">🤝</span><span class="cat-label" data-i18n="role.sales">Sales</span></span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="edit-role" value="service_advisor" />
+            <span class="cat-tile"><span class="cat-icon">🛠️</span><span class="cat-label" data-i18n="role.service_advisor">Service Advisor</span></span>
           </label>
           <label class="cat-card">
             <input type="radio" name="edit-role" value="recon" />

@@ -18,7 +18,7 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('manager', 'sales', 'recon')),
+    role TEXT NOT NULL CHECK (role IN ('manager', 'sales', 'service_advisor', 'recon')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -47,6 +47,35 @@ db.exec(`
 
 function columnExists(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
+
+// Expand users.role CHECK constraint to include 'service_advisor'.
+// SQLite can't ALTER a CHECK in place, so we recreate the table.
+const usersSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get();
+if (usersSchema && !/service_advisor/.test(usersSchema.sql)) {
+  if (!columnExists('users', 'phone')) {
+    db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
+  }
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE users__new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('manager', 'sales', 'service_advisor', 'recon')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        phone TEXT
+      );
+      INSERT INTO users__new (id, name, email, password_hash, role, created_at, phone)
+        SELECT id, name, email, password_hash, role, created_at, phone FROM users;
+      DROP TABLE users;
+      ALTER TABLE users__new RENAME TO users;
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    `);
+  })();
+  db.pragma('foreign_keys = ON');
 }
 if (!columnExists('users', 'phone')) {
   db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
