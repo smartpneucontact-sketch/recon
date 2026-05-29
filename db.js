@@ -108,6 +108,13 @@ if (!columnExists('cars', 'next_in_line')) {
 }
 db.exec('CREATE INDEX IF NOT EXISTS idx_cars_nextinline ON cars(next_in_line)');
 
+if (!columnExists('cars', 'lane')) {
+  db.exec("ALTER TABLE cars ADD COLUMN lane TEXT");
+  // Existing cars default to bay 120; manager can move them later.
+  db.exec("UPDATE cars SET lane = '120' WHERE lane IS NULL");
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_cars_lane ON cars(lane)');
+
 if (!columnExists('cars', 'is_urgent')) {
   db.exec('ALTER TABLE cars ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0');
 }

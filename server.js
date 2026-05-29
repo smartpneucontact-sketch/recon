@@ -10,6 +10,7 @@ const { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta } = require('./db');
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const ROLES = ['manager', 'sales', 'service_advisor', 'recon'];
+const LANES = ['120', '124'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const app = express();
@@ -323,7 +324,7 @@ app.get('/api/cars/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/cars', requireRole('manager', 'sales', 'service_advisor'), (req, res) => {
-  const { stock_number, category, scheduled_at } = req.body || {};
+  const { stock_number, category, scheduled_at, lane } = req.body || {};
   if (!stock_number || !stock_number.trim()) return res.status(400).json({ error: 'stock_number_required' });
   if (!['delivery', 'trade_auction', 'service'].includes(category)) {
     return res.status(400).json({ error: 'invalid_category' });
@@ -331,14 +332,36 @@ app.post('/api/cars', requireRole('manager', 'sales', 'service_advisor'), (req, 
   if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {
     return res.status(400).json({ error: 'scheduled_at_required' });
   }
+  if (!LANES.includes(lane)) {
+    return res.status(400).json({ error: 'invalid_lane' });
+  }
   const queueRank = new Date(scheduled_at).getTime();
   const info = db.prepare(`
-    INSERT INTO cars (stock_number, category, scheduled_at, next_in_line, created_by_user_id)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, queueRank, req.user.id);
+    INSERT INTO cars (stock_number, category, scheduled_at, lane, next_in_line, created_by_user_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(stock_number.trim().toUpperCase(), category, scheduled_at, lane, queueRank, req.user.id);
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(info.lastInsertRowid);
-  broadcast('car', { id: car.id, category: car.category });
+  broadcast('car', { id: car.id, category: car.category, lane: car.lane });
   res.status(201).json({ car });
+});
+
+app.patch('/api/cars/:id', requireRole('manager'), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const car = db.prepare('SELECT id, category, lane FROM cars WHERE id = ?').get(id);
+  if (!car) return res.status(404).json({ error: 'not_found' });
+  const updates = [];
+  const values = [];
+  if ('lane' in req.body) {
+    if (!LANES.includes(req.body.lane)) return res.status(400).json({ error: 'invalid_lane' });
+    updates.push('lane = ?');
+    values.push(req.body.lane);
+  }
+  if (!updates.length) return res.status(400).json({ error: 'no_changes' });
+  values.push(id);
+  db.prepare(`UPDATE cars SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
+  broadcast('car', { id, category: updated.category, lane: updated.lane });
+  res.json({ car: updated });
 });
 
 app.post('/api/cars/move', requireRole('manager'), (req, res) => {

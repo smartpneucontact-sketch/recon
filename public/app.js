@@ -7,9 +7,10 @@ const state = {
   liveSource: null,
   refreshTimer: null,
   dragging: false,
-  sortable: null
+  sortables: []
 };
 const CATEGORIES = ['delivery', 'trade_auction', 'service'];
+const LANES = ['120', '124'];
 
 const $app = document.getElementById('app');
 const $logout = document.getElementById('logout-btn');
@@ -417,13 +418,24 @@ async function loadCars() {
 }
 
 function renderBoards(cars) {
-  if (state.sortable) { try { state.sortable.destroy(); } catch {} state.sortable = null; }
-  const grouped = { __next: cars.slice() };
-  for (const cat of CATEGORIES) grouped[cat] = [];
-  for (const c of cars) if (grouped[c.category]) grouped[c.category].push(c);
-  // Per-category columns: fixed sort by creation date (oldest first).
+  if (state.sortables && state.sortables.length) {
+    for (const s of state.sortables) { try { s.destroy(); } catch {} }
+  }
+  state.sortables = [];
+
+  // Group by lane (Next-in-line columns) and by category (fixed reference columns).
+  const byLane = {};
+  for (const L of LANES) byLane[L] = [];
+  for (const c of cars) if (byLane[c.lane]) byLane[c.lane].push(c);
+  for (const L of LANES) {
+    byLane[L].sort((a, b) => (a.next_in_line || 0) - (b.next_in_line || 0) || a.id - b.id);
+  }
+
+  const byCat = {};
+  for (const cat of CATEGORIES) byCat[cat] = [];
+  for (const c of cars) if (byCat[c.category]) byCat[c.category].push(c);
   for (const cat of CATEGORIES) {
-    grouped[cat].sort((a, b) => {
+    byCat[cat].sort((a, b) => {
       const ta = parseDate(a.created_at)?.getTime() ?? 0;
       const tb = parseDate(b.created_at)?.getTime() ?? 0;
       return ta - tb || a.id - b.id;
@@ -433,23 +445,24 @@ function renderBoards(cars) {
   const isManager = state.user && state.user.role === 'manager';
 
   for (const board of document.querySelectorAll('.board')) {
+    const lane = board.dataset.lane;
     const cat = board.dataset.category;
     const list = board.querySelector('[data-board-list]');
     const empty = board.querySelector('[data-board-empty]');
     const count = board.querySelector('[data-board-count]');
     list.innerHTML = '';
-    const items = grouped[cat] || [];
+    const items = lane ? (byLane[lane] || []) : (cat ? (byCat[cat] || []) : []);
     count.textContent = items.length ? String(items.length) : '';
     if (!items.length) {
       empty.hidden = false;
     } else {
       empty.hidden = true;
-      const showCategory = (cat === '__next');
-      const showDrag = (cat === '__next') && isManager;
+      const showCategory = !!lane;            // lane columns mix categories, show the badge
+      const showDrag = !!lane && isManager;   // only lane columns are draggable, manager only
       for (const c of items) list.appendChild(renderCarRow(c, { showCategory, showDrag }));
     }
-    if (cat === '__next' && isManager && items.length && typeof Sortable !== 'undefined') {
-      state.sortable = Sortable.create(list, {
+    if (lane && isManager && items.length && typeof Sortable !== 'undefined') {
+      const sortable = Sortable.create(list, {
         handle: '.drag-handle',
         animation: 150,
         ghostClass: 'sortable-ghost',
@@ -464,6 +477,7 @@ function renderBoards(cars) {
           persistMove(list, evt.newIndex);
         }
       });
+      state.sortables.push(sortable);
     }
   }
 }
@@ -553,9 +567,11 @@ function showAddCar() {
     err.hidden = true;
     const stock_number = document.getElementById('stock-number').value.trim();
     const cat = form.querySelector('input[name="category"]:checked');
+    const lane = form.querySelector('input[name="lane"]:checked');
     const sched = schedInput.value;
     if (!stock_number) { err.textContent = i18n.t('addCar.stockRequired'); err.hidden = false; return; }
     if (!sched) { err.textContent = i18n.t('addCar.scheduleRequired'); err.hidden = false; return; }
+    if (!lane) { err.textContent = i18n.t('addCar.laneRequired'); err.hidden = false; return; }
     if (!cat) { err.textContent = i18n.t('addCar.categoryRequired'); err.hidden = false; return; }
     let scheduled_at;
     try {
@@ -564,11 +580,12 @@ function showAddCar() {
       err.textContent = i18n.t('addCar.scheduleInvalid'); err.hidden = false; return;
     }
     try {
-      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value, scheduled_at });
+      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value, lane: lane.value, scheduled_at });
       showCarDetail(car.id);
     } catch (ex) {
       if (ex.status === 401) return showLogin();
       if (ex.data && ex.data.error === 'scheduled_at_required') err.textContent = i18n.t('addCar.scheduleRequired');
+      else if (ex.data && ex.data.error === 'invalid_lane') err.textContent = i18n.t('addCar.laneRequired');
       else err.textContent = ex.message;
       err.hidden = false;
     }
@@ -693,6 +710,12 @@ async function showCarDetail(id) {
     const catEl = document.getElementById('car-category');
     catEl.textContent = i18n.t('category.' + car.category);
     catEl.classList.add(car.category);
+    if (car.lane) {
+      const laneEl = document.createElement('span');
+      laneEl.className = 'badge lane-badge';
+      laneEl.textContent = `🛠 ${car.lane}`;
+      catEl.parentNode.insertBefore(laneEl, catEl.nextSibling);
+    }
     const stEl = document.getElementById('car-status');
     stEl.textContent = i18n.t('status.' + car.status);
     stEl.classList.add(car.status);
@@ -773,6 +796,7 @@ async function showCarDetail(id) {
     }
     if (canWrite) setupUpload(id);
     setupUrgentToggle(car, canWrite);
+    if (isManager) setupLaneEditor(car);
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     $app.innerHTML = `<p class="error">${ex.message}</p>`;
@@ -837,6 +861,28 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
+
+function setupLaneEditor(car) {
+  const controls = document.querySelector('.lane-controls');
+  const seg = document.getElementById('lane-seg');
+  if (!controls || !seg) return;
+  controls.hidden = false;
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lane === car.lane);
+    btn.onclick = async () => {
+      if (btn.dataset.lane === car.lane) return;
+      seg.querySelectorAll('button').forEach(b => b.disabled = true);
+      try {
+        await api('PATCH', `/api/cars/${car.id}`, { lane: btn.dataset.lane });
+        showCarDetail(car.id);
+      } catch (ex) {
+        if (ex.status === 401) return showLogin();
+        alert(ex.message || 'Could not change lane.');
+        seg.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    };
+  });
+}
 
 function setupUrgentToggle(car, canWrite) {
   const strip = document.getElementById('urgent-strip');

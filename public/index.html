@@ -161,11 +161,22 @@
       </div>
 
       <div class="boards">
-        <section class="board board-next" data-category="__next">
+        <section class="board board-next" data-lane="120">
           <header class="board-header">
             <span class="board-title next">
-              <span class="board-icon">⏰</span>
-              <span data-i18n="dashboard.nextInLine">Next in line</span>
+              <span class="board-icon">🛠️</span>
+              <span>120</span>
+            </span>
+            <span class="board-count" data-board-count></span>
+          </header>
+          <div class="board-list" data-board-list></div>
+          <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
+        </section>
+        <section class="board board-next" data-lane="124">
+          <header class="board-header">
+            <span class="board-title next">
+              <span class="board-icon">🛠️</span>
+              <span>124</span>
             </span>
             <span class="board-count" data-board-count></span>
           </header>
@@ -223,6 +234,23 @@
           <input id="scheduled-at" type="datetime-local" required />
         </label>
         <fieldset class="cat-picker">
+          <legend data-i18n="addCar.lane">Bay</legend>
+          <label class="cat-card">
+            <input type="radio" name="lane" value="120" required />
+            <span class="cat-tile">
+              <span class="cat-icon">🛠️</span>
+              <span class="cat-label">120</span>
+            </span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="lane" value="124" />
+            <span class="cat-tile">
+              <span class="cat-icon">🛠️</span>
+              <span class="cat-label">124</span>
+            </span>
+          </label>
+        </fieldset>
+        <fieldset class="cat-picker">
           <legend data-i18n="addCar.category">Category</legend>
           <label class="cat-card">
             <input type="radio" name="category" value="delivery" required />
@@ -271,6 +299,14 @@
         <span class="urgent-bolt" aria-hidden="true">🚨</span>
         <span class="urgent-strip-text" data-i18n="detail.urgentActive">This job is flagged URGENT.</span>
         <span id="urgent-meta" class="muted"></span>
+      </div>
+
+      <div class="lane-controls role-gated" data-roles="manager" hidden>
+        <span class="lane-label" data-i18n="detail.lane">Bay</span>
+        <div class="lane-seg" id="lane-seg">
+          <button type="button" data-lane="120">120</button>
+          <button type="button" data-lane="124">124</button>
+        </div>
       </div>
 
       <div class="urgent-controls role-gated" data-roles="manager,sales,service_advisor" hidden>

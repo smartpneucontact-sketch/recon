@@ -163,7 +163,7 @@ main {
   padding-bottom: calc(16px + var(--safe-bottom));
 }
 /* Dashboard view needs full width for the 4-column board */
-main:has(.dashboard) { max-width: 1600px; }
+main:has(.dashboard) { max-width: 1800px; }
 /* When sticky action bar is shown, add space at the bottom */
 main:has(.sticky-action:not([hidden])) {
   padding-bottom: calc(112px + var(--safe-bottom));
@@ -368,16 +368,19 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 
 #manager-actions { margin-bottom: 14px; }
 
-/* Boards: Next-in-line + 3 categories */
+/* Boards: 2 lane boards + 3 category boards */
 .boards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
-@media (max-width: 1180px) {
+@media (max-width: 1400px) {
+  .boards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
   .boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 640px) {
+@media (max-width: 600px) {
   .boards { grid-template-columns: 1fr; gap: 18px; }
 }
 .board {
@@ -867,6 +870,47 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   overflow-y: auto;
 }
 .lightbox-caption:empty { display: none; }
+
+/* Lane (bay) editor on detail view */
+.lane-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lane-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+}
+.lane-seg {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+.lane-seg button {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  min-height: 36px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  letter-spacing: 0.5px;
+}
+.lane-seg button.active { background: var(--primary); color: white; }
+.lane-seg button:disabled { opacity: 0.5; }
+
+.badge.lane-badge {
+  background: #eef2f9;
+  color: var(--primary);
+  border-color: #c8d6e8;
+  font-weight: 700;
+}
 
 /* Urgent flag */
 .urgent-badge {
