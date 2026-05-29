@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="index,follow" />
+  <title>SMS Program — Atlantic Subaru Recon</title>
+  <link rel="icon" type="image/png" href="/icon-192.png" />
+  <style>
+    :root {
+      --primary: #0a2240;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --border: #e3e6eb;
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 24px 20px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+    .brand { font-weight: 600; letter-spacing: 0.3px; font-size: 16px; }
+    .brand .star { color: #ffd24d; margin-right: 8px; }
+    h1 { margin: 24px 0 8px; font-size: 28px; }
+    h2 { margin: 32px 0 8px; font-size: 18px; color: var(--primary); }
+    main { padding: 8px 0 60px; }
+    main p, main li { font-size: 15px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin: 16px 0;
+    }
+    code, pre {
+      background: #eef2f7;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-size: 14px;
+      color: #1d4ed8;
+    }
+    pre {
+      display: block;
+      padding: 12px 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+    }
+    .muted { color: var(--muted); font-size: 14px; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 4px; }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 0;
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    a { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap brand"><span class="star">★</span>Atlantic Subaru · Recon</div>
+  </header>
+  <main class="wrap">
+    <h1>SMS Notifications — Program Information</h1>
+    <p class="muted">Last updated: May 2026</p>
+
+    <div class="card">
+      <p><strong>Atlantic Subaru Recon</strong> is an internal vehicle reconditioning workflow application used by Atlantic Subaru staff (managers, sales associates, service advisors, and recon team members). This page describes the SMS notification program available to those staff members.</p>
+    </div>
+
+    <h2>What the program does</h2>
+    <p>The application sends short, transactional text messages to opted-in dealership employees when:</p>
+    <ul>
+      <li>A vehicle reconditioning job is flagged <strong>urgent</strong> by a manager, sales associate, or service advisor.</li>
+      <li>A reconditioning job is <strong>marked complete</strong> by the recon team.</li>
+    </ul>
+    <p>Messages are operational and time-sensitive. They are <strong>not marketing</strong> and are not sent to customers — only to authenticated dealership staff who have opted in.</p>
+
+    <h2>How users opt in</h2>
+    <p>Opt-in is collected inside the authenticated employee web application. Each user has a <em>Receive SMS alerts</em> switch on their profile in the Users management screen. When the switch is enabled, the user (or the manager acting on the user's verbal or written consent) sees and agrees to the following on-screen text:</p>
+    <div class="card">
+      <p style="margin:0">By turning this on, the user consents to receive operational text messages from Atlantic Subaru Recon — only when a job is flagged urgent or marked done. Message and data rates may apply. Frequency varies. Reply STOP to unsubscribe at any time.</p>
+    </div>
+    <p>The application records the timestamp at which each user's opt-in was captured. Opting out clears that record.</p>
+
+    <h2>Sample messages</h2>
+    <pre>Atlantic Subaru Recon: URGENT — P12345 (delivery bay 120) flagged by Sally Sales. Reply STOP to unsubscribe.</pre>
+    <pre>Atlantic Subaru Recon: DONE — P12345 (delivery bay 120) finished by Rico Recon. Reply STOP to unsubscribe.</pre>
+
+    <h2>Message frequency</h2>
+    <p>Variable, depending on dealership activity. Typical volume is <strong>1–10 messages per opted-in employee per day</strong>. Some days will have no messages at all.</p>
+
+    <h2>Cost</h2>
+    <p>Message and data rates may apply, charged by the recipient's mobile carrier. Atlantic Subaru does not charge employees for receiving these messages.</p>
+
+    <h2>How to stop receiving messages</h2>
+    <ul>
+      <li>Reply <code>STOP</code> to any message to unsubscribe immediately. Other keywords that work: <code>CANCEL</code>, <code>END</code>, <code>QUIT</code>, <code>UNSUBSCRIBE</code>.</li>
+      <li>Reply <code>HELP</code> to receive help / contact information.</li>
+      <li>Or, ask your manager to toggle off the <em>Receive SMS alerts</em> switch on your user profile in the application.</li>
+    </ul>
+
+    <h2>Privacy</h2>
+    <p>Phone numbers and opt-in state are stored only inside the Atlantic Subaru Recon application's private database. They are not sold, rented, or shared with any third party except the SMS delivery provider (Twilio Inc.) for the purpose of delivering the messages described above.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about the SMS program can be directed to Atlantic Subaru at:</p>
+    <ul>
+      <li>Web: <a href="https://www.atlanticsubaru.com">https://www.atlanticsubaru.com</a></li>
+    </ul>
+
+    <footer class="wrap">
+      Atlantic Subaru Recon · Internal employee SMS notification program · This page exists to satisfy US carrier (A2P 10DLC / Toll-Free) verification requirements.
+    </footer>
+  </main>
+</body>
+</html>
