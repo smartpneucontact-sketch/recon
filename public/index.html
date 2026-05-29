@@ -433,6 +433,17 @@
           <button type="button" id="sms-test-btn" class="ghost" data-i18n="users.smsTest">📱 Send test SMS to this user</button>
           <p id="sms-test-msg" class="muted" hidden></p>
         </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="edit-whatsapp-alerts" />
+          <span>
+            <strong data-i18n="users.whatsappAlerts">Receive WhatsApp alerts</strong>
+            <small class="muted" data-i18n="users.whatsappAlertsHint">Same urgent / done triggers as SMS, delivered through WhatsApp. The user must first join the Twilio sandbox (one-time setup).</small>
+          </span>
+        </label>
+        <div class="sms-test-row">
+          <button type="button" id="whatsapp-test-btn" class="ghost" data-i18n="users.whatsappTest">💬 Send test WhatsApp to this user</button>
+          <p id="whatsapp-test-msg" class="muted" hidden></p>
+        </div>
         <button type="submit" class="primary block big" data-i18n="users.save">Save</button>
         <p id="edit-user-error" class="error" hidden></p>
       </form>

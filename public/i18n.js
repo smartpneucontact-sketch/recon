@@ -51,6 +51,11 @@ const I18N = {
     'users.smsTestInvalidPhone': 'Phone number format is not a valid US number.',
     'users.smsTestDisabled': 'SMS is not configured on the server (Twilio env vars missing).',
     'users.smsTestFailed': 'Twilio returned an error: {code} {msg}',
+    'users.whatsappAlerts': 'Receive WhatsApp alerts',
+    'users.whatsappAlertsHint': 'Same urgent / done triggers as SMS, delivered through WhatsApp. The user must first join the Twilio sandbox (one-time setup).',
+    'users.whatsappTest': '💬 Send test WhatsApp to this user',
+    'users.whatsappTestSent': 'Test WhatsApp sent to {to}. Check WhatsApp on the phone.',
+    'users.whatsappTestDisabled': 'WhatsApp is not configured on the server (TWILIO_WHATSAPP_FROM missing).',
 
     'common.back': 'Back',
     'common.cancel': 'Cancel',
@@ -189,6 +194,11 @@ const I18N = {
     'users.smsTestInvalidPhone': 'El formato del teléfono no es un número válido de EE. UU.',
     'users.smsTestDisabled': 'SMS no está configurado en el servidor (faltan las variables Twilio).',
     'users.smsTestFailed': 'Twilio devolvió un error: {code} {msg}',
+    'users.whatsappAlerts': 'Recibir avisos por WhatsApp',
+    'users.whatsappAlertsHint': 'Mismos disparadores urgente/terminado que SMS, entregados por WhatsApp. El usuario debe unirse primero al sandbox de Twilio (configuración única).',
+    'users.whatsappTest': '💬 Enviar WhatsApp de prueba',
+    'users.whatsappTestSent': 'WhatsApp de prueba enviado a {to}. Revisa WhatsApp en el teléfono.',
+    'users.whatsappTestDisabled': 'WhatsApp no está configurado en el servidor (falta TWILIO_WHATSAPP_FROM).',
 
     'common.back': 'Atrás',
     'common.cancel': 'Cancelar',

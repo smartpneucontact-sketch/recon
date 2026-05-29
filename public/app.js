@@ -746,6 +746,7 @@ function renderUserRow(u) {
         <span class="user-row-contact">${escapeHtml(u.email)}</span>
         ${u.phone ? `<span class="user-row-contact">📞 ${escapeHtml(u.phone)}</span>` : ''}
         ${u.sms_alerts ? `<span class="user-row-contact sms-on" title="${escapeAttr(i18n.t('users.smsAlerts'))}">📱 SMS</span>` : ''}
+        ${u.whatsapp_alerts ? `<span class="user-row-contact whatsapp-on" title="${escapeAttr(i18n.t('users.whatsappAlerts'))}">💬 WA</span>` : ''}
       </div>
     </div>
     <div class="user-actions">
@@ -782,33 +783,37 @@ function showEditUser(u) {
   editPhone.value = u.phone || '';
   wireUSPhoneInput(editPhone);
   document.getElementById('edit-sms-alerts').checked = !!u.sms_alerts;
+  document.getElementById('edit-whatsapp-alerts').checked = !!u.whatsapp_alerts;
 
-  // Wire the "Send test SMS" button — sends a one-off message to this user.
-  const testBtn = document.getElementById('sms-test-btn');
-  const testMsg = document.getElementById('sms-test-msg');
-  if (testBtn) {
-    testBtn.onclick = async () => {
-      testMsg.hidden = true;
-      testBtn.disabled = true;
+  // Generic test-channel wiring; reused for SMS and WhatsApp buttons.
+  const wireChannelTest = (channelKey, btnId, msgId, endpoint, disabledKey) => {
+    const btn = document.getElementById(btnId);
+    const msg = document.getElementById(msgId);
+    if (!btn) return;
+    btn.onclick = async () => {
+      msg.hidden = true;
+      btn.disabled = true;
       try {
-        const res = await api('POST', `/api/users/${u.id}/sms-test`);
-        testMsg.className = 'muted';
-        testMsg.textContent = i18n.t('users.smsTestSent').replace('{to}', res.to || u.phone);
-        testMsg.hidden = false;
+        const res = await api('POST', endpoint);
+        msg.className = 'muted';
+        msg.textContent = i18n.t(`users.${channelKey}TestSent`).replace('{to}', res.to || u.phone);
+        msg.hidden = false;
       } catch (ex) {
-        testMsg.className = 'error';
-        if (ex.status === 503) testMsg.textContent = i18n.t('users.smsTestDisabled');
-        else if (ex.data && ex.data.error === 'no_phone') testMsg.textContent = i18n.t('users.smsTestNoPhone');
-        else if (ex.data && ex.data.error === 'phone_invalid') testMsg.textContent = i18n.t('users.smsTestInvalidPhone');
+        msg.className = 'error';
+        if (ex.status === 503) msg.textContent = i18n.t(disabledKey);
+        else if (ex.data && ex.data.error === 'no_phone') msg.textContent = i18n.t('users.smsTestNoPhone');
+        else if (ex.data && ex.data.error === 'phone_invalid') msg.textContent = i18n.t('users.smsTestInvalidPhone');
         else if (ex.data && ex.data.error === 'twilio_error') {
-          testMsg.textContent = i18n.t('users.smsTestFailed').replace('{code}', ex.data.code || '?').replace('{msg}', ex.data.message || '');
-        } else testMsg.textContent = ex.message || i18n.t('users.smsTestFailed');
-        testMsg.hidden = false;
+          msg.textContent = i18n.t('users.smsTestFailed').replace('{code}', ex.data.code || '?').replace('{msg}', ex.data.message || '');
+        } else msg.textContent = ex.message || i18n.t('users.smsTestFailed');
+        msg.hidden = false;
       } finally {
-        testBtn.disabled = false;
+        btn.disabled = false;
       }
     };
-  }
+  };
+  wireChannelTest('sms', 'sms-test-btn', 'sms-test-msg', `/api/users/${u.id}/sms-test`, 'users.smsTestDisabled');
+  wireChannelTest('whatsapp', 'whatsapp-test-btn', 'whatsapp-test-msg', `/api/users/${u.id}/whatsapp-test`, 'users.whatsappTestDisabled');
   const roleInput = document.querySelector(`input[name="edit-role"][value="${u.role}"]`);
   if (roleInput) roleInput.checked = true;
   const form = document.getElementById('edit-user-form');
@@ -828,7 +833,8 @@ function showEditUser(u) {
       email: document.getElementById('edit-email').value.trim(),
       phone: phoneVal,
       role: role ? role.value : u.role,
-      sms_alerts: document.getElementById('edit-sms-alerts').checked
+      sms_alerts: document.getElementById('edit-sms-alerts').checked,
+      whatsapp_alerts: document.getElementById('edit-whatsapp-alerts').checked
     };
     const newPwd = document.getElementById('edit-password').value;
     if (newPwd) body.password = newPwd;

@@ -66,16 +66,20 @@ webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_FROM = process.env.TWILIO_FROM;
+const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM;  // e.g. 'whatsapp:+14155238886' (Sandbox) or your own approved sender
 let twilioClient = null;
-if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM) {
+if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
   try {
     twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    console.log(`Twilio SMS enabled (from ${TWILIO_FROM})`);
+    if (TWILIO_FROM) console.log(`Twilio SMS enabled (from ${TWILIO_FROM})`);
+    else console.warn('TWILIO_FROM missing -- SMS sends will be disabled until set.');
+    if (TWILIO_WHATSAPP_FROM) console.log(`Twilio WhatsApp enabled (from ${TWILIO_WHATSAPP_FROM})`);
+    else console.warn('TWILIO_WHATSAPP_FROM missing -- WhatsApp sends will be disabled until set.');
   } catch (err) {
-    console.warn('Twilio init failed; SMS disabled:', err.message);
+    console.warn('Twilio init failed; SMS/WhatsApp disabled:', err.message);
   }
 } else {
-  console.warn('Twilio env vars missing (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM). SMS notifications are disabled.');
+  console.warn('Twilio env vars missing (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN). SMS and WhatsApp notifications are disabled.');
 }
 
 function normalizePhone(raw) {
@@ -93,7 +97,7 @@ function isValidUSPhone(raw) {
 }
 
 async function sendSMS(message, { excludeUserId } = {}) {
-  if (!twilioClient) return { sent: 0, skipped: 0, reason: 'twilio_disabled' };
+  if (!twilioClient || !TWILIO_FROM) return { sent: 0, skipped: 0, reason: 'sms_disabled' };
   const params = [];
   let sql = `
     SELECT id, name, phone FROM users
@@ -112,7 +116,37 @@ async function sendSMS(message, { excludeUserId } = {}) {
       sent++;
     } catch (err) {
       failed++;
-      console.error(`Twilio send to ${to} failed:`, err.code || err.message);
+      console.error(`Twilio SMS to ${to} failed:`, err.code || err.message);
+    }
+  }));
+  return { sent, failed };
+}
+
+async function sendWhatsApp(message, { excludeUserId } = {}) {
+  if (!twilioClient || !TWILIO_WHATSAPP_FROM) return { sent: 0, skipped: 0, reason: 'whatsapp_disabled' };
+  const params = [];
+  let sql = `
+    SELECT id, name, phone FROM users
+    WHERE whatsapp_alerts = 1 AND phone IS NOT NULL AND phone <> ''
+  `;
+  if (excludeUserId) { sql += ' AND id != ?'; params.push(excludeUserId); }
+  const recipients = db.prepare(sql).all(...params);
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(recipients.map(async (u) => {
+    const e164 = normalizePhone(u.phone);
+    if (!e164) { failed++; return; }
+    try {
+      await twilioClient.messages.create({
+        from: TWILIO_WHATSAPP_FROM,
+        to: `whatsapp:${e164}`,
+        body: message
+      });
+      sent++;
+    } catch (err) {
+      failed++;
+      console.error(`Twilio WhatsApp to ${e164} failed:`, err.code || err.message);
     }
   }));
   return { sent, failed };
@@ -157,7 +191,7 @@ function broadcast(type, payload) {
 
 function loadUser(req, _res, next) {
   if (req.session.userId) {
-    req.user = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(req.session.userId) || null;
+    req.user = db.prepare('SELECT id, name, email, phone, role, sms_alerts, whatsapp_alerts FROM users WHERE id = ?').get(req.session.userId) || null;
     if (!req.user) req.session.destroy(() => {});
   }
   next();
@@ -182,7 +216,8 @@ function publicUser(u) {
     email: u.email,
     phone: u.phone || null,
     role: u.role,
-    sms_alerts: u.sms_alerts ? 1 : 0
+    sms_alerts: u.sms_alerts ? 1 : 0,
+    whatsapp_alerts: u.whatsapp_alerts ? 1 : 0
   } : null;
 }
 
@@ -204,7 +239,7 @@ app.post('/api/signup', (req, res) => {
   const info = db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
     .run(name, email, phone || null, hash, role);
   req.session.userId = info.lastInsertRowid;
-  const user = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(info.lastInsertRowid);
+  const user = db.prepare('SELECT id, name, email, phone, role, sms_alerts, whatsapp_alerts FROM users WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ user: publicUser(user) });
 });
 
@@ -276,7 +311,7 @@ app.get('/api/events', requireAuth, (req, res) => {
 /* ---------- Users (manager only) ---------- */
 app.get('/api/users', requireRole('manager'), (_req, res) => {
   const users = db.prepare(`
-    SELECT id, name, email, phone, role, sms_alerts, created_at
+    SELECT id, name, email, phone, role, sms_alerts, whatsapp_alerts, created_at
     FROM users
     ORDER BY role ASC, name ASC
   `).all();
@@ -335,11 +370,21 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
       updates.push('sms_consent_at = NULL');
     }
   }
+  if ('whatsapp_alerts' in req.body) {
+    const newValue = req.body.whatsapp_alerts ? 1 : 0;
+    updates.push('whatsapp_alerts = ?'); values.push(newValue);
+    const current = db.prepare('SELECT whatsapp_alerts FROM users WHERE id = ?').get(id);
+    if (newValue === 1 && current && !current.whatsapp_alerts) {
+      updates.push("whatsapp_consent_at = datetime('now')");
+    } else if (newValue === 0) {
+      updates.push('whatsapp_consent_at = NULL');
+    }
+  }
 
   if (!updates.length) return res.status(400).json({ error: 'no_changes' });
   values.push(id);
   db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-  const updated = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(id);
+  const updated = db.prepare('SELECT id, name, email, phone, role, sms_alerts, whatsapp_alerts FROM users WHERE id = ?').get(id);
   broadcast('user', { id });
   res.json({ user: publicUser(updated) });
 });
@@ -349,7 +394,7 @@ app.post('/api/users/:id/sms-test', requireRole('manager'), async (req, res) => 
   const target = db.prepare('SELECT id, name, phone FROM users WHERE id = ?').get(id);
   if (!target) return res.status(404).json({ error: 'not_found' });
   if (!target.phone) return res.status(400).json({ error: 'no_phone' });
-  if (!twilioClient) return res.status(503).json({ error: 'twilio_disabled' });
+  if (!twilioClient || !TWILIO_FROM) return res.status(503).json({ error: 'twilio_disabled' });
   const to = normalizePhone(target.phone);
   if (!to) return res.status(400).json({ error: 'phone_invalid' });
   try {
@@ -361,6 +406,27 @@ app.post('/api/users/:id/sms-test', requireRole('manager'), async (req, res) => 
     res.json({ ok: true, sid: result.sid, to });
   } catch (err) {
     console.error('SMS test failed', err.code, err.message);
+    res.status(500).json({ error: 'twilio_error', code: err.code || null, message: err.message || 'unknown' });
+  }
+});
+
+app.post('/api/users/:id/whatsapp-test', requireRole('manager'), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const target = db.prepare('SELECT id, name, phone FROM users WHERE id = ?').get(id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+  if (!target.phone) return res.status(400).json({ error: 'no_phone' });
+  if (!twilioClient || !TWILIO_WHATSAPP_FROM) return res.status(503).json({ error: 'whatsapp_disabled' });
+  const e164 = normalizePhone(target.phone);
+  if (!e164) return res.status(400).json({ error: 'phone_invalid' });
+  try {
+    const result = await twilioClient.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to: `whatsapp:${e164}`,
+      body: `Atlantic Subaru Recon: test WhatsApp message for ${target.name}. WhatsApp alerts are wired up correctly.`
+    });
+    res.json({ ok: true, sid: result.sid, to: e164 });
+  } catch (err) {
+    console.error('WhatsApp test failed', err.code, err.message);
     res.status(500).json({ error: 'twilio_error', code: err.code || null, message: err.message || 'unknown' });
   }
 });
@@ -528,10 +594,13 @@ app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_adviso
 
     const catLabel = updated.category.replace('_', ' ');
     const lane = updated.lane ? ` bay ${updated.lane}` : '';
+    const urgentBody = `Atlantic Subaru Recon: URGENT — ${updated.stock_number} (${catLabel}${lane}) flagged by ${req.user.name}.`;
     sendSMS(
-      `Atlantic Subaru Recon: URGENT — ${updated.stock_number} (${catLabel}${lane}) flagged by ${req.user.name}. Reply STOP to unsubscribe.`,
+      `${urgentBody} Reply STOP to unsubscribe.`,
       { excludeUserId: req.user.id }
     ).catch(err => console.error('sendSMS failed', err));
+    sendWhatsApp(urgentBody, { excludeUserId: req.user.id })
+      .catch(err => console.error('sendWhatsApp failed', err));
   }
   res.json({ car: updated });
 });
@@ -580,10 +649,13 @@ app.post('/api/cars/:id/complete', requireRole('manager', 'recon'), (req, res) =
 
   const catLabel = updated.category.replace('_', ' ');
   const lane = updated.lane ? ` bay ${updated.lane}` : '';
+  const doneBody = `Atlantic Subaru Recon: DONE — ${updated.stock_number} (${catLabel}${lane}) finished by ${req.user.name}.`;
   sendSMS(
-    `Atlantic Subaru Recon: DONE — ${updated.stock_number} (${catLabel}${lane}) finished by ${req.user.name}. Reply STOP to unsubscribe.`,
+    `${doneBody} Reply STOP to unsubscribe.`,
     { excludeUserId: req.user.id }
   ).catch(err => console.error('sendSMS failed', err));
+  sendWhatsApp(doneBody, { excludeUserId: req.user.id })
+    .catch(err => console.error('sendWhatsApp failed', err));
 
   res.json({ car: updated });
 });
