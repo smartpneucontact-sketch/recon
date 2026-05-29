@@ -324,7 +324,16 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
     updates.push('password_hash = ?'); values.push(bcrypt.hashSync(req.body.password, 10));
   }
   if ('sms_alerts' in req.body) {
-    updates.push('sms_alerts = ?'); values.push(req.body.sms_alerts ? 1 : 0);
+    const newValue = req.body.sms_alerts ? 1 : 0;
+    updates.push('sms_alerts = ?'); values.push(newValue);
+    // First time opting in -> stamp consent. Opt-out clears the stamp so a future re-opt
+    // captures a fresh consent timestamp.
+    const current = db.prepare('SELECT sms_alerts FROM users WHERE id = ?').get(id);
+    if (newValue === 1 && current && !current.sms_alerts) {
+      updates.push("sms_consent_at = datetime('now')");
+    } else if (newValue === 0) {
+      updates.push('sms_consent_at = NULL');
+    }
   }
 
   if (!updates.length) return res.status(400).json({ error: 'no_changes' });
@@ -347,7 +356,7 @@ app.post('/api/users/:id/sms-test', requireRole('manager'), async (req, res) => 
     const result = await twilioClient.messages.create({
       from: TWILIO_FROM,
       to,
-      body: `Atlantic Subaru Recon — test SMS for ${target.name}. If you got this, SMS alerts are wired up correctly.`
+      body: `Atlantic Subaru Recon: test SMS for ${target.name}. SMS alerts are wired up correctly. Reply STOP to unsubscribe.`
     });
     res.json({ ok: true, sid: result.sid, to });
   } catch (err) {
@@ -520,7 +529,7 @@ app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_adviso
     const catLabel = updated.category.replace('_', ' ');
     const lane = updated.lane ? ` bay ${updated.lane}` : '';
     sendSMS(
-      `🚨 URGENT — ${updated.stock_number} (${catLabel}${lane}) — flagged by ${req.user.name}`,
+      `Atlantic Subaru Recon: URGENT — ${updated.stock_number} (${catLabel}${lane}) flagged by ${req.user.name}. Reply STOP to unsubscribe.`,
       { excludeUserId: req.user.id }
     ).catch(err => console.error('sendSMS failed', err));
   }
@@ -572,7 +581,7 @@ app.post('/api/cars/:id/complete', requireRole('manager', 'recon'), (req, res) =
   const catLabel = updated.category.replace('_', ' ');
   const lane = updated.lane ? ` bay ${updated.lane}` : '';
   sendSMS(
-    `✓ DONE — ${updated.stock_number} (${catLabel}${lane}) — finished by ${req.user.name}`,
+    `Atlantic Subaru Recon: DONE — ${updated.stock_number} (${catLabel}${lane}) finished by ${req.user.name}. Reply STOP to unsubscribe.`,
     { excludeUserId: req.user.id }
   ).catch(err => console.error('sendSMS failed', err));
 

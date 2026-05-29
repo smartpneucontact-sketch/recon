@@ -121,6 +121,11 @@ if (!columnExists('users', 'phone')) {
 if (!columnExists('users', 'sms_alerts')) {
   db.exec('ALTER TABLE users ADD COLUMN sms_alerts INTEGER NOT NULL DEFAULT 0');
 }
+if (!columnExists('users', 'sms_consent_at')) {
+  db.exec('ALTER TABLE users ADD COLUMN sms_consent_at TEXT');
+  // Backfill: any user already opted in gets a consent timestamp of now.
+  db.exec("UPDATE users SET sms_consent_at = datetime('now') WHERE sms_alerts = 1 AND sms_consent_at IS NULL");
+}
 if (!columnExists('cars', 'created_by_user_id')) {
   db.exec('ALTER TABLE cars ADD COLUMN created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
