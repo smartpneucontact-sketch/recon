@@ -907,6 +907,16 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   gap: 2px;
 }
 .checkbox-row small { font-size: 12px; }
+.sms-test-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -4px;
+}
+.sms-test-row button { align-self: flex-start; }
+#sms-test-msg { margin: 0; font-size: 13px; }
+#sms-test-msg.error { color: var(--danger); }
+
 .sms-on {
   background: #e0f2fe;
   color: #075985;

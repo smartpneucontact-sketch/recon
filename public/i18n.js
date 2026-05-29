@@ -24,6 +24,7 @@ const I18N = {
     'signup.invalidEmail': 'Please enter a valid email.',
     'signup.passwordShort': 'Password must be at least 6 characters.',
     'signup.roleRequired': 'Please choose a role.',
+    'signup.phoneInvalid': 'Enter a valid US phone number (10 digits).',
     'signup.error': 'Could not create account.',
 
     'role.manager': 'Manager',
@@ -44,6 +45,12 @@ const I18N = {
     'users.you': 'you',
     'users.smsAlerts': 'Receive SMS alerts',
     'users.smsAlertsHint': 'Sends a text when a job is flagged urgent or marked done.',
+    'users.smsTest': '📱 Send test SMS to this user',
+    'users.smsTestSent': 'Test SMS sent to {to}. Check the phone.',
+    'users.smsTestNoPhone': 'This user has no phone number set.',
+    'users.smsTestInvalidPhone': 'Phone number format is not a valid US number.',
+    'users.smsTestDisabled': 'SMS is not configured on the server (Twilio env vars missing).',
+    'users.smsTestFailed': 'Twilio returned an error: {code} {msg}',
 
     'common.back': 'Back',
     'common.cancel': 'Cancel',
@@ -155,6 +162,7 @@ const I18N = {
     'signup.invalidEmail': 'Introduce un correo válido.',
     'signup.passwordShort': 'La contraseña debe tener al menos 6 caracteres.',
     'signup.roleRequired': 'Elige un rol.',
+    'signup.phoneInvalid': 'Introduce un teléfono válido de EE. UU. (10 dígitos).',
     'signup.error': 'No se pudo crear la cuenta.',
 
     'role.manager': 'Gerente',
@@ -175,6 +183,12 @@ const I18N = {
     'users.you': 'tú',
     'users.smsAlerts': 'Recibir avisos por SMS',
     'users.smsAlertsHint': 'Envía un texto cuando un trabajo se marca urgente o terminado.',
+    'users.smsTest': '📱 Enviar SMS de prueba a este usuario',
+    'users.smsTestSent': 'SMS de prueba enviado a {to}. Revisa el teléfono.',
+    'users.smsTestNoPhone': 'Este usuario no tiene un teléfono.',
+    'users.smsTestInvalidPhone': 'El formato del teléfono no es un número válido de EE. UU.',
+    'users.smsTestDisabled': 'SMS no está configurado en el servidor (faltan las variables Twilio).',
+    'users.smsTestFailed': 'Twilio devolvió un error: {code} {msg}',
 
     'common.back': 'Atrás',
     'common.cancel': 'Cancelar',

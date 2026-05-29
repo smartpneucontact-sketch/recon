@@ -87,6 +87,10 @@ function normalizePhone(raw) {
   if (String(raw).startsWith('+')) return `+${digits}`;       // already +-prefixed
   return null;                                                // unknown format, skip
 }
+function isValidUSPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+}
 
 async function sendSMS(message, { excludeUserId } = {}) {
   if (!twilioClient) return { sent: 0, skipped: 0, reason: 'twilio_disabled' };
@@ -193,6 +197,7 @@ app.post('/api/signup', (req, res) => {
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'email_invalid' });
   if (password.length < 6) return res.status(400).json({ error: 'password_too_short' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'invalid_role' });
+  if (phone && !isValidUSPhone(phone)) return res.status(400).json({ error: 'phone_invalid' });
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (existing) return res.status(409).json({ error: 'email_taken' });
   const hash = bcrypt.hashSync(password, 10);
@@ -302,6 +307,7 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
   }
   if ('phone' in req.body) {
     const phone = (req.body.phone || '').toString().trim();
+    if (phone && !isValidUSPhone(phone)) return res.status(400).json({ error: 'phone_invalid' });
     updates.push('phone = ?'); values.push(phone || null);
   }
   if (typeof req.body.role === 'string') {
@@ -327,6 +333,27 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
   const updated = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(id);
   broadcast('user', { id });
   res.json({ user: publicUser(updated) });
+});
+
+app.post('/api/users/:id/sms-test', requireRole('manager'), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const target = db.prepare('SELECT id, name, phone FROM users WHERE id = ?').get(id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+  if (!target.phone) return res.status(400).json({ error: 'no_phone' });
+  if (!twilioClient) return res.status(503).json({ error: 'twilio_disabled' });
+  const to = normalizePhone(target.phone);
+  if (!to) return res.status(400).json({ error: 'phone_invalid' });
+  try {
+    const result = await twilioClient.messages.create({
+      from: TWILIO_FROM,
+      to,
+      body: `Atlantic Subaru Recon — test SMS for ${target.name}. If you got this, SMS alerts are wired up correctly.`
+    });
+    res.json({ ok: true, sid: result.sid, to });
+  } catch (err) {
+    console.error('SMS test failed', err.code, err.message);
+    res.status(500).json({ error: 'twilio_error', code: err.code || null, message: err.message || 'unknown' });
+  }
 });
 
 app.delete('/api/users/:id', requireRole('manager'), (req, res) => {

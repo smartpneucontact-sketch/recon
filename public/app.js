@@ -83,6 +83,36 @@ function api(method, url, body, isForm) {
 }
 function safeJson(t) { try { return JSON.parse(t); } catch { return null; } }
 
+/* ---------- US PHONE FORMAT HELPERS ---------- */
+function usPhoneDigits(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+  return digits.slice(0, 10);
+}
+function formatUSPhone(raw) {
+  const d = usPhoneDigits(raw);
+  if (!d) return '';
+  if (d.length > 6) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length > 3) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d}`;
+}
+function isValidUSPhone(raw) {
+  return usPhoneDigits(raw).length === 10;
+}
+function wireUSPhoneInput(input) {
+  if (!input) return;
+  input.placeholder = '(555) 123-4567';
+  input.autocomplete = 'tel';
+  input.inputMode = 'tel';
+  // Format the initial value (in case loaded from DB in any format)
+  if (input.value) input.value = formatUSPhone(input.value) || input.value;
+  input.addEventListener('input', () => {
+    const cursorAtEnd = input.selectionStart === input.value.length;
+    input.value = formatUSPhone(input.value);
+    if (cursorAtEnd) input.setSelectionRange(input.value.length, input.value.length);
+  });
+}
+
 /* ---------- LIVE UPDATES (Server-Sent Events) ---------- */
 function startLiveUpdates() {
   if (state.liveSource) return;
@@ -385,6 +415,7 @@ function showSignup() {
   const pwd = document.getElementById('signup-password');
   const err = document.getElementById('signup-error');
   document.getElementById('go-login').addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
+  wireUSPhoneInput(phone);
   name.focus();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -392,6 +423,7 @@ function showSignup() {
     const role = form.querySelector('input[name="signup-role"]:checked');
     if (!role) { err.textContent = i18n.t('signup.roleRequired'); err.hidden = false; return; }
     if (pwd.value.length < 6) { err.textContent = i18n.t('signup.passwordShort'); err.hidden = false; return; }
+    if (!isValidUSPhone(phone.value)) { err.textContent = i18n.t('signup.phoneInvalid'); err.hidden = false; return; }
     try {
       const res = await api('POST', '/api/signup', {
         name: name.value.trim(),
@@ -409,6 +441,7 @@ function showSignup() {
       if (ex.status === 409) err.textContent = i18n.t('signup.emailTaken');
       else if (ex.data && ex.data.error === 'email_invalid') err.textContent = i18n.t('signup.invalidEmail');
       else if (ex.data && ex.data.error === 'password_too_short') err.textContent = i18n.t('signup.passwordShort');
+      else if (ex.data && ex.data.error === 'phone_invalid') err.textContent = i18n.t('signup.phoneInvalid');
       else err.textContent = i18n.t('signup.error');
       err.hidden = false;
     }
@@ -745,8 +778,37 @@ function showEditUser(u) {
   document.querySelector('[data-back]').addEventListener('click', showUsers);
   document.getElementById('edit-name').value = u.name || '';
   document.getElementById('edit-email').value = u.email || '';
-  document.getElementById('edit-phone').value = u.phone || '';
+  const editPhone = document.getElementById('edit-phone');
+  editPhone.value = u.phone || '';
+  wireUSPhoneInput(editPhone);
   document.getElementById('edit-sms-alerts').checked = !!u.sms_alerts;
+
+  // Wire the "Send test SMS" button — sends a one-off message to this user.
+  const testBtn = document.getElementById('sms-test-btn');
+  const testMsg = document.getElementById('sms-test-msg');
+  if (testBtn) {
+    testBtn.onclick = async () => {
+      testMsg.hidden = true;
+      testBtn.disabled = true;
+      try {
+        const res = await api('POST', `/api/users/${u.id}/sms-test`);
+        testMsg.className = 'muted';
+        testMsg.textContent = i18n.t('users.smsTestSent').replace('{to}', res.to || u.phone);
+        testMsg.hidden = false;
+      } catch (ex) {
+        testMsg.className = 'error';
+        if (ex.status === 503) testMsg.textContent = i18n.t('users.smsTestDisabled');
+        else if (ex.data && ex.data.error === 'no_phone') testMsg.textContent = i18n.t('users.smsTestNoPhone');
+        else if (ex.data && ex.data.error === 'phone_invalid') testMsg.textContent = i18n.t('users.smsTestInvalidPhone');
+        else if (ex.data && ex.data.error === 'twilio_error') {
+          testMsg.textContent = i18n.t('users.smsTestFailed').replace('{code}', ex.data.code || '?').replace('{msg}', ex.data.message || '');
+        } else testMsg.textContent = ex.message || i18n.t('users.smsTestFailed');
+        testMsg.hidden = false;
+      } finally {
+        testBtn.disabled = false;
+      }
+    };
+  }
   const roleInput = document.querySelector(`input[name="edit-role"][value="${u.role}"]`);
   if (roleInput) roleInput.checked = true;
   const form = document.getElementById('edit-user-form');
@@ -755,10 +817,16 @@ function showEditUser(u) {
     e.preventDefault();
     err.hidden = true;
     const role = form.querySelector('input[name="edit-role"]:checked');
+    const phoneVal = document.getElementById('edit-phone').value.trim();
+    if (phoneVal && !isValidUSPhone(phoneVal)) {
+      err.textContent = i18n.t('signup.phoneInvalid');
+      err.hidden = false;
+      return;
+    }
     const body = {
       name: document.getElementById('edit-name').value.trim(),
       email: document.getElementById('edit-email').value.trim(),
-      phone: document.getElementById('edit-phone').value.trim(),
+      phone: phoneVal,
       role: role ? role.value : u.role,
       sms_alerts: document.getElementById('edit-sms-alerts').checked
     };
