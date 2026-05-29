@@ -407,6 +407,17 @@
     </section>
   </template>
 
+  <div id="dialog" class="dialog" hidden role="dialog" aria-modal="true">
+    <div class="dialog-backdrop" data-dialog-close></div>
+    <div class="dialog-card">
+      <p id="dialog-message" class="dialog-message"></p>
+      <div class="dialog-actions">
+        <button id="dialog-cancel" type="button" class="ghost big"></button>
+        <button id="dialog-ok" type="button" class="primary big"></button>
+      </div>
+    </div>
+  </div>
+
   <div id="lightbox" class="lightbox" hidden>
     <button id="lightbox-close" class="lightbox-close" aria-label="Close">✕</button>
     <div id="lightbox-stage" class="lightbox-stage">

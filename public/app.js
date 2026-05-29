@@ -24,6 +24,43 @@ const $urgentToastTitle = document.getElementById('urgent-toast-title');
 const $urgentToastSub = document.getElementById('urgent-toast-sub');
 const $pushBanner = document.getElementById('enable-push-banner');
 
+/* ---------- IN-APP DIALOG (replaces window.confirm/alert, which TV browsers block) ---------- */
+const dialogEl = document.getElementById('dialog');
+const dialogMsg = document.getElementById('dialog-message');
+const dialogOk = document.getElementById('dialog-ok');
+const dialogCancel = document.getElementById('dialog-cancel');
+
+function showDialog(message, { okText, cancelText, danger, confirm } = {}) {
+  return new Promise((resolve) => {
+    dialogMsg.textContent = message;
+    dialogOk.textContent = okText || (confirm ? i18n.t('common.confirm') : 'OK');
+    dialogCancel.textContent = cancelText || i18n.t('common.cancel');
+    dialogCancel.hidden = !confirm;
+    dialogOk.className = 'big ' + (danger ? 'danger' : 'primary');
+    dialogEl.hidden = false;
+
+    const finish = (result) => {
+      dialogEl.hidden = true;
+      dialogOk.onclick = null;
+      dialogCancel.onclick = null;
+      dialogEl.querySelector('[data-dialog-close]').onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      else if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    };
+    dialogOk.onclick = () => finish(true);
+    dialogCancel.onclick = () => finish(false);
+    dialogEl.querySelector('[data-dialog-close]').onclick = () => finish(false);
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => dialogOk.focus(), 0);
+  });
+}
+const showConfirm = (msg, opts = {}) => showDialog(msg, { ...opts, confirm: true });
+const showAlert = (msg) => showDialog(msg);
+
 function api(method, url, body, isForm) {
   const opts = { method, headers: {}, credentials: 'same-origin' };
   if (body && !isForm) {
@@ -491,7 +528,7 @@ async function persistMove(listEl, newIndex) {
     await api('POST', '/api/cars/move', { id: movedId, aboveId, belowId });
   } catch (ex) {
     if (ex.status === 401) return showLogin();
-    alert(i18n.t('dashboard.reorderError'));
+    await showAlert(i18n.t('dashboard.reorderError'));
     loadCars();
   }
 }
@@ -641,14 +678,14 @@ function renderUserRow(u) {
   const delBtn = row.querySelector('.delete-btn');
   if (!isSelf) {
     delBtn.addEventListener('click', async () => {
-      if (!confirm(i18n.t('users.deleteConfirm').replace('{name}', u.name))) return;
+      if (!await showConfirm(i18n.t('users.deleteConfirm').replace('{name}', u.name), { danger: true })) return;
       try {
         await api('DELETE', `/api/users/${u.id}`);
         showUsers();
       } catch (ex) {
-        if (ex.data && ex.data.error === 'last_manager') alert(i18n.t('users.lastManager'));
-        else if (ex.data && ex.data.error === 'cannot_delete_self') alert(i18n.t('users.cannotDeleteSelf'));
-        else alert(ex.message);
+        if (ex.data && ex.data.error === 'last_manager') await showAlert(i18n.t('users.lastManager'));
+        else if (ex.data && ex.data.error === 'cannot_delete_self') await showAlert(i18n.t('users.cannotDeleteSelf'));
+        else await showAlert(ex.message);
       }
     });
   }
@@ -760,14 +797,14 @@ async function showCarDetail(id) {
         completeBtn.hidden = false;
         showSticky = true;
         completeBtn.addEventListener('click', async () => {
-          if (!confirm(i18n.t('detail.markDoneConfirm'))) return;
+          if (!await showConfirm(i18n.t('detail.markDoneConfirm'), { okText: i18n.t('detail.markDone') })) return;
           completeBtn.disabled = true;
           try {
             await api('POST', `/api/cars/${id}/complete`);
             showDashboard();
           } catch (ex) {
             completeBtn.disabled = false;
-            alert(ex.message);
+            await showAlert(ex.message);
           }
         });
       }
@@ -789,7 +826,7 @@ async function showCarDetail(id) {
     if (isManager) {
       deleteBtn.hidden = false;
       deleteBtn.addEventListener('click', async () => {
-        if (!confirm(i18n.t('detail.deleteConfirm'))) return;
+        if (!await showConfirm(i18n.t('detail.deleteConfirm'), { danger: true, okText: i18n.t('common.delete') })) return;
         await api('DELETE', `/api/cars/${id}`);
         showDashboard();
       });
@@ -830,7 +867,7 @@ function renderPhotos(photos) {
     const rm = card.querySelector('.remove');
     if (rm) rm.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm(i18n.t('detail.removePhotoConfirm'))) return;
+      if (!await showConfirm(i18n.t('detail.removePhotoConfirm'), { danger: true, okText: i18n.t('common.delete') })) return;
       await api('DELETE', `/api/photos/${p.id}`);
       showCarDetail(state.carId);
     });
@@ -877,7 +914,7 @@ function setupLaneEditor(car) {
         showCarDetail(car.id);
       } catch (ex) {
         if (ex.status === 401) return showLogin();
-        alert(ex.message || 'Could not change lane.');
+        await showAlert(ex.message || 'Could not change lane.');
         seg.querySelectorAll('button').forEach(b => b.disabled = false);
       }
     };
@@ -907,7 +944,7 @@ function setupUrgentToggle(car, canWrite) {
     } catch (ex) {
       btn.disabled = false;
       if (ex.status === 401) return showLogin();
-      alert(ex.message || 'Could not update.');
+      await showAlert(ex.message || 'Could not update.');
     }
   };
 }
@@ -1014,7 +1051,7 @@ function escapeAttr(s) { return escapeHtml(s); }
 $logout.title = i18n.t('common.logout');
 $logout.setAttribute('aria-label', i18n.t('common.logout'));
 $logout.addEventListener('click', async () => {
-  if (!confirm(i18n.t('common.logoutConfirm'))) return;
+  if (!await showConfirm(i18n.t('common.logoutConfirm'))) return;
   stopLiveUpdates();
   await api('POST', '/api/logout');
   state.user = null;
