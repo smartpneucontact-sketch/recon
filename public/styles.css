@@ -75,6 +75,46 @@ body {
 
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+/* Boston-time clock, centered in the top bar */
+.topbar-clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  color: white;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: 0 8px;
+}
+.topbar-clock-date {
+  font-size: 13px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.topbar-clock-time {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.topbar-clock-tz {
+  font-size: 10px;
+  opacity: 0.6;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  align-self: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+}
+@media (max-width: 640px) {
+  .topbar-clock-date { display: none; }
+  .topbar-clock-time { font-size: 14px; }
+}
+@media (max-width: 380px) {
+  .topbar-clock { display: none; }
+}
+
 .user-chip {
   display: inline-flex;
   flex-direction: column;

@@ -1201,6 +1201,27 @@ $lang.addEventListener('change', () => {
 
 i18n.apply(document);
 
+/* ---------- BOSTON-TIME CLOCK (top bar, always visible) ---------- */
+(function startTopbarClock() {
+  const dateEl = document.getElementById('topbar-clock-date');
+  const timeEl = document.getElementById('topbar-clock-time');
+  if (!dateEl || !timeEl) return;
+  const tz = 'America/New_York';
+  const dateFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, weekday: 'short', month: 'short', day: 'numeric'
+  });
+  const timeFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true
+  });
+  const update = () => {
+    const now = new Date();
+    dateEl.textContent = dateFmt.format(now);
+    timeEl.textContent = timeFmt.format(now);
+  };
+  update();
+  setInterval(update, 30000);
+})();
+
 /* ---------- BOOT ---------- */
 (async () => {
   try {
