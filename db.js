@@ -26,7 +26,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS cars (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     stock_number TEXT NOT NULL,
-    category TEXT NOT NULL CHECK (category IN ('delivery', 'trade_auction', 'service')),
+    category TEXT NOT NULL CHECK (category IN ('delivery', 'trade_auction', 'service', 'wholesale_clean')),
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
@@ -47,6 +47,44 @@ db.exec(`
 
 function columnExists(table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
+
+// Expand cars.category CHECK to include 'wholesale_clean'.
+// SQLite can't ALTER a CHECK; we rebuild the table preserving every column.
+const carsSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cars'").get();
+if (carsSchema && !/wholesale_clean/.test(carsSchema.sql)) {
+  const cols = db.prepare("PRAGMA table_info(cars)").all().map(c => c.name);
+  const colList = cols.join(', ');
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE cars__new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stock_number TEXT NOT NULL,
+        category TEXT NOT NULL CHECK (category IN ('delivery', 'trade_auction', 'service', 'wholesale_clean')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT,
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        completed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        scheduled_at TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        next_in_line INTEGER,
+        lane TEXT,
+        is_urgent INTEGER NOT NULL DEFAULT 0,
+        urgent_set_at TEXT,
+        urgent_set_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+      );
+    `);
+    db.exec(`INSERT INTO cars__new (${colList}) SELECT ${colList} FROM cars;`);
+    db.exec('DROP TABLE cars');
+    db.exec('ALTER TABLE cars__new RENAME TO cars');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_cars_status ON cars(status)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_cars_category_position ON cars(category, position)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_cars_nextinline ON cars(next_in_line)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_cars_lane ON cars(lane)');
+  })();
+  db.pragma('foreign_keys = ON');
 }
 
 // Expand users.role CHECK constraint to include 'service_advisor'.

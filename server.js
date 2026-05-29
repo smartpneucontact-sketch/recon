@@ -288,7 +288,7 @@ app.get('/api/cars', requireAuth, (req, res) => {
   if (status === 'pending' || status === 'completed') {
     conditions.push('c.status = ?'); params.push(status);
   }
-  if (['delivery', 'trade_auction', 'service'].includes(category)) {
+  if (['delivery', 'trade_auction', 'service', 'wholesale_clean'].includes(category)) {
     conditions.push('c.category = ?'); params.push(category);
   }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -326,7 +326,7 @@ app.get('/api/cars/:id', requireAuth, (req, res) => {
 app.post('/api/cars', requireRole('manager', 'sales', 'service_advisor'), (req, res) => {
   const { stock_number, category, scheduled_at, lane } = req.body || {};
   if (!stock_number || !stock_number.trim()) return res.status(400).json({ error: 'stock_number_required' });
-  if (!['delivery', 'trade_auction', 'service'].includes(category)) {
+  if (!['delivery', 'trade_auction', 'service', 'wholesale_clean'].includes(category)) {
     return res.status(400).json({ error: 'invalid_category' });
   }
   if (!scheduled_at || isNaN(new Date(scheduled_at).getTime())) {

@@ -163,7 +163,7 @@ main {
   padding-bottom: calc(16px + var(--safe-bottom));
 }
 /* Dashboard view needs full width for the 4-column board */
-main:has(.dashboard) { max-width: 1800px; }
+main:has(.dashboard) { max-width: 1920px; }
 /* When sticky action bar is shown, add space at the bottom */
 main:has(.sticky-action:not([hidden])) {
   padding-bottom: calc(112px + var(--safe-bottom));
@@ -318,6 +318,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .cat-tile.delivery .cat-icon { color: #1d4ed8; }
 .cat-tile.trade_auction .cat-icon { color: #92400e; }
 .cat-tile.service .cat-icon { color: #166534; }
+.cat-tile.wholesale_clean .cat-icon { color: #0f766e; }
 
 .login { max-width: 420px; margin: 40px auto; }
 .login form { margin-top: 16px; }
@@ -372,9 +373,15 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .boards {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
+.boards.boards-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .boards.boards-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.boards.boards-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 1700px;
+  margin: 0 auto;
+}
 .boards.boards-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 1380px;
@@ -386,15 +393,23 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   margin: 0 auto;
 }
 
+@media (max-width: 1600px) {
+  .boards.boards-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 1400px) {
-  .boards.boards-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .boards.boards-5,
+  .boards.boards-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
+  .boards.boards-6,
   .boards.boards-5,
+  .boards.boards-4,
   .boards.boards-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
+  .boards.boards-6,
   .boards.boards-5,
+  .boards.boards-4,
   .boards.boards-3,
   .boards.boards-2 { grid-template-columns: 1fr; gap: 18px; }
 }
@@ -429,6 +444,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .board-title.delivery { color: #1d4ed8; }
 .board-title.trade_auction { color: #92400e; }
 .board-title.service { color: #166534; }
+.board-title.wholesale_clean { color: #0f766e; }
 .board-title.next { color: var(--primary); }
 
 .board-next {
@@ -565,6 +581,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .badge.delivery { background: #e7f0ff; color: #1d4ed8; border-color: #c7dbff; }
 .badge.trade_auction { background: #fff4e0; color: #92400e; border-color: #fde2b3; }
 .badge.service { background: #e8f7ec; color: #166534; border-color: #c8ebd2; }
+.badge.wholesale_clean { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; }
 
 .status-pill {
   display: inline-flex;

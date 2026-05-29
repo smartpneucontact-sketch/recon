@@ -9,7 +9,7 @@ const state = {
   dragging: false,
   sortables: []
 };
-const CATEGORIES = ['delivery', 'trade_auction', 'service'];
+const CATEGORIES = ['delivery', 'trade_auction', 'service', 'wholesale_clean'];
 const LANES = ['120', '124'];
 
 const $app = document.getElementById('app');

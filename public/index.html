@@ -216,6 +216,17 @@
           <div class="board-list" data-board-list></div>
           <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
         </section>
+        <section class="board" data-category="wholesale_clean">
+          <header class="board-header">
+            <span class="board-title wholesale_clean">
+              <span class="board-icon">💧</span>
+              <span data-i18n="category.wholesale_clean">Wholesale Clean</span>
+            </span>
+            <span class="board-count" data-board-count></span>
+          </header>
+          <div class="board-list" data-board-list></div>
+          <p class="board-empty muted center" data-board-empty hidden data-i18n="dashboard.empty">No vehicles.</p>
+        </section>
       </div>
     </section>
   </template>
@@ -271,6 +282,13 @@
             <span class="cat-tile service">
               <span class="cat-icon">🔧</span>
               <span class="cat-label" data-i18n="category.service">Service</span>
+            </span>
+          </label>
+          <label class="cat-card">
+            <input type="radio" name="category" value="wholesale_clean" />
+            <span class="cat-tile wholesale_clean">
+              <span class="cat-icon">💧</span>
+              <span class="cat-label" data-i18n="category.wholesale_clean">Wholesale Clean</span>
             </span>
           </label>
         </fieldset>
