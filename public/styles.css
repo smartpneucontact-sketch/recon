@@ -369,14 +369,16 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 
 #manager-actions { margin-bottom: 14px; }
 
-/* Boards layout: column count is set in JS via .boards-N */
+/* Boards layout: column count is set in JS via .boards-N.
+   When both lanes AND categories are visible (boards-5 / boards-6) we slot a
+   visual divider into a dedicated grid track between them. */
 .boards {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
-.boards.boards-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.boards.boards-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.boards.boards-6 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
+.boards.boards-5 { grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
 .boards.boards-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   max-width: 1700px;
@@ -413,6 +415,49 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   .boards.boards-3,
   .boards.boards-2 { grid-template-columns: 1fr; gap: 18px; }
 }
+
+/* Divider between bay queues (120/124) and category columns */
+.boards-divider {
+  width: 26px;
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 4px;
+}
+.boards-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--border) 15%, var(--border) 85%, transparent 100%);
+  width: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.boards-divider-label {
+  position: relative;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 2px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+/* Hide the divider in layouts where it would land in the middle of nothing */
+.boards-divider { display: none; }
+.boards.boards-6 .boards-divider,
+.boards.boards-5 .boards-divider { display: flex; }
+@media (max-width: 1600px) {
+  .boards.boards-6 .boards-divider { display: none; }
+}
+@media (max-width: 1400px) {
+  .boards.boards-5 .boards-divider { display: none; }
+}
 .board {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -448,19 +493,21 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .board-title.next { color: var(--primary); }
 
 .board-next {
-  background: linear-gradient(180deg, #f3f6fc 0%, var(--surface-2) 80%);
-  border-color: #d1dceb;
+  background: linear-gradient(180deg, #e9eef7 0%, #f0f4fb 80%);
+  border-color: #b9c8de;
   position: relative;
+  box-shadow: var(--shadow), 0 0 0 1px rgba(10, 34, 64, 0.04);
 }
 .board-next::before {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
+  height: 5px;
   background: var(--primary);
   border-radius: var(--radius) var(--radius) 0 0;
 }
-.board-next .board-header { border-bottom-color: #d1dceb; }
+.board-next .board-header { border-bottom-color: #b9c8de; }
+.board-next .board-title.next { font-size: 15px; }
 .board-next .car-row .badge {
   margin-left: 6px;
   font-size: 10px;
