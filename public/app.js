@@ -514,8 +514,9 @@ function renderBoards(cars) {
       const showDrag = !!lane && isManager;   // only lane columns are draggable, manager only
       for (const c of items) list.appendChild(renderCarRow(c, { showCategory, showDrag }));
     }
-    if (lane && isManager && items.length && typeof Sortable !== 'undefined') {
+    if (lane && isManager && typeof Sortable !== 'undefined') {
       const sortable = Sortable.create(list, {
+        group: 'recon-lanes',          // both lane lists share a group -> cross-list drag works
         handle: '.drag-handle',
         animation: 150,
         ghostClass: 'sortable-ghost',
@@ -526,8 +527,9 @@ function renderBoards(cars) {
         onStart: () => { state.dragging = true; },
         onEnd: (evt) => {
           state.dragging = false;
-          if (evt.oldIndex === evt.newIndex) return;
-          persistMove(list, evt.newIndex);
+          const sameList = evt.from === evt.to;
+          if (sameList && evt.oldIndex === evt.newIndex) return;
+          persistMove(evt.to, evt.newIndex);
         }
       });
       state.sortables.push(sortable);
@@ -545,8 +547,10 @@ async function persistMove(listEl, newIndex) {
   const movedId = parseInt(rows[newIndex].dataset.carId, 10);
   const aboveId = newIndex > 0 ? parseInt(rows[newIndex - 1].dataset.carId, 10) : null;
   const belowId = newIndex < rows.length - 1 ? parseInt(rows[newIndex + 1].dataset.carId, 10) : null;
+  // The destination lane is the dataset.lane of the .board that owns this list.
+  const lane = listEl.closest('.board')?.dataset.lane || null;
   try {
-    await api('POST', '/api/cars/move', { id: movedId, aboveId, belowId });
+    await api('POST', '/api/cars/move', { id: movedId, aboveId, belowId, lane });
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     await showAlert(i18n.t('dashboard.reorderError'));

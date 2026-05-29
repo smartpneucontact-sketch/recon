@@ -368,7 +368,9 @@ app.post('/api/cars/move', requireRole('manager'), (req, res) => {
   const id = parseInt(req.body.id, 10);
   const aboveId = req.body.aboveId == null ? null : parseInt(req.body.aboveId, 10);
   const belowId = req.body.belowId == null ? null : parseInt(req.body.belowId, 10);
+  const newLane = req.body.lane == null ? null : String(req.body.lane);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid_id' });
+  if (newLane != null && !LANES.includes(newLane)) return res.status(400).json({ error: 'invalid_lane' });
   const moved = db.prepare('SELECT id FROM cars WHERE id = ?').get(id);
   if (!moved) return res.status(404).json({ error: 'not_found' });
 
@@ -380,13 +382,19 @@ app.post('/api/cars/move', requireRole('manager'), (req, res) => {
   const aboveRank = rankOf(aboveId);
   const belowRank = rankOf(belowId);
 
-  let newRank;
+  let newRank = null;
   if (aboveRank != null && belowRank != null) newRank = (aboveRank + belowRank) / 2;
   else if (aboveRank != null) newRank = aboveRank + 60000;
   else if (belowRank != null) newRank = belowRank - 60000;
-  else return res.status(400).json({ error: 'no_neighbors' });
+  // both null -> no neighbors (e.g. moved card is alone in the destination); keep current rank
 
-  db.prepare('UPDATE cars SET next_in_line = ? WHERE id = ?').run(newRank, id);
+  const updates = [];
+  const values = [];
+  if (newRank !== null) { updates.push('next_in_line = ?'); values.push(newRank); }
+  if (newLane !== null) { updates.push('lane = ?'); values.push(newLane); }
+  if (!updates.length) return res.json({ ok: true });
+  values.push(id);
+  db.prepare(`UPDATE cars SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   broadcast('cars', {});
   res.json({ ok: true });
 });
