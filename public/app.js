@@ -796,7 +796,7 @@ async function showCarDetail(id) {
     if (car.lane) {
       const laneEl = document.createElement('span');
       laneEl.className = 'badge lane-badge';
-      laneEl.textContent = `🛠 ${car.lane}`;
+      laneEl.textContent = `🚿 ${car.lane}`;
       catEl.parentNode.insertBefore(laneEl, catEl.nextSibling);
     }
     const stEl = document.getElementById('car-status');
