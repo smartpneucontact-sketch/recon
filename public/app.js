@@ -620,6 +620,27 @@ function showAddCar() {
   schedInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   schedInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00`;
 
+  // Auto-select the default bay when a category is picked.
+  // Delivery / Auction Trade / Wholesale Clean -> 120, Service -> 124.
+  // Manager can still override by tapping the other bay afterwards.
+  const CATEGORY_TO_LANE = {
+    delivery: '120',
+    trade_auction: '120',
+    wholesale_clean: '120',
+    service: '124'
+  };
+  form.querySelectorAll('input[name="category"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const defaultLane = CATEGORY_TO_LANE[input.value];
+      if (!defaultLane) return;
+      const laneInput = form.querySelector(`input[name="lane"][value="${defaultLane}"]`);
+      if (laneInput) {
+        laneInput.checked = true;
+        laneInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
