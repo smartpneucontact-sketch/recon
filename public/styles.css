@@ -368,20 +368,35 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 
 #manager-actions { margin-bottom: 14px; }
 
-/* Boards: 2 lane boards + 3 category boards */
+/* Boards layout: column count is set in JS via .boards-N */
 .boards {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
+.boards.boards-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.boards.boards-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 1380px;
+  margin: 0 auto;
+}
+.boards.boards-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 920px;
+  margin: 0 auto;
+}
+
 @media (max-width: 1400px) {
-  .boards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .boards.boards-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .boards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .boards.boards-5,
+  .boards.boards-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
-  .boards { grid-template-columns: 1fr; gap: 18px; }
+  .boards.boards-5,
+  .boards.boards-3,
+  .boards.boards-2 { grid-template-columns: 1fr; gap: 18px; }
 }
 .board {
   background: var(--surface-2);

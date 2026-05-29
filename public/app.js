@@ -479,11 +479,27 @@ function renderBoards(cars) {
     });
   }
 
-  const isManager = state.user && state.user.role === 'manager';
+  const role = state.user && state.user.role;
+  const isManager = role === 'manager';
+  const isRecon = role === 'recon';
+  const status = state.filter.status;
+  // Recon sees only the lane queues in Pending, only the category history in Completed.
+  // Everyone else (and recon on the "All" filter) sees every column.
+  const boardVisible = (board) => {
+    if (!isRecon || status === 'all') return true;
+    const isLane = !!board.dataset.lane;
+    if (status === 'pending') return isLane;
+    if (status === 'completed') return !isLane;
+    return true;
+  };
 
+  let visibleCount = 0;
   for (const board of document.querySelectorAll('.board')) {
     const lane = board.dataset.lane;
     const cat = board.dataset.category;
+    if (!boardVisible(board)) { board.hidden = true; continue; }
+    board.hidden = false;
+    visibleCount++;
     const list = board.querySelector('[data-board-list]');
     const empty = board.querySelector('[data-board-empty]');
     const count = board.querySelector('[data-board-count]');
@@ -516,6 +532,11 @@ function renderBoards(cars) {
       });
       state.sortables.push(sortable);
     }
+  }
+  const boardsEl = document.querySelector('.boards');
+  if (boardsEl) {
+    boardsEl.classList.remove('boards-2', 'boards-3', 'boards-5');
+    boardsEl.classList.add(`boards-${visibleCount}`);
   }
 }
 
