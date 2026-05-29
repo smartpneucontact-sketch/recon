@@ -885,6 +885,38 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
   flex-shrink: 0;
 }
 .user-actions button { min-height: 40px; padding: 8px 14px; font-size: 13px; }
+/* Checkbox row used in edit-user (and similar simple toggles) */
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.checkbox-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.checkbox-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.checkbox-row small { font-size: 12px; }
+.sms-on {
+  background: #e0f2fe;
+  color: #075985;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
 .badge.manager { background: #ede9fe; color: #5b21b6; border-color: #d8c9fb; }
 .badge.sales { background: #e7f0ff; color: #1d4ed8; border-color: #c7dbff; }
 .badge.service_advisor { background: #fef3c7; color: #92400e; border-color: #fde68a; }

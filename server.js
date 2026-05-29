@@ -5,6 +5,7 @@ const session = require('express-session');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const webpush = require('web-push');
+const twilio = require('twilio');
 const { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta } = require('./db');
 
 const PORT = process.env.PORT || 3000;
@@ -61,6 +62,58 @@ if (!vapidPublic || !vapidPrivate) {
 }
 webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
+/* ---------- Twilio / SMS ---------- */
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_FROM = process.env.TWILIO_FROM;
+let twilioClient = null;
+if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM) {
+  try {
+    twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    console.log(`Twilio SMS enabled (from ${TWILIO_FROM})`);
+  } catch (err) {
+    console.warn('Twilio init failed; SMS disabled:', err.message);
+  }
+} else {
+  console.warn('Twilio env vars missing (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM). SMS notifications are disabled.');
+}
+
+function normalizePhone(raw) {
+  if (!raw) return null;
+  const digits = String(raw).replace(/[^\d]/g, '');
+  if (!digits) return null;
+  if (digits.length === 10) return `+1${digits}`;            // 5065551234 -> +15065551234
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (String(raw).startsWith('+')) return `+${digits}`;       // already +-prefixed
+  return null;                                                // unknown format, skip
+}
+
+async function sendSMS(message, { excludeUserId } = {}) {
+  if (!twilioClient) return { sent: 0, skipped: 0, reason: 'twilio_disabled' };
+  const params = [];
+  let sql = `
+    SELECT id, name, phone FROM users
+    WHERE sms_alerts = 1 AND phone IS NOT NULL AND phone <> ''
+  `;
+  if (excludeUserId) { sql += ' AND id != ?'; params.push(excludeUserId); }
+  const recipients = db.prepare(sql).all(...params);
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(recipients.map(async (u) => {
+    const to = normalizePhone(u.phone);
+    if (!to) { failed++; return; }
+    try {
+      await twilioClient.messages.create({ from: TWILIO_FROM, to, body: message });
+      sent++;
+    } catch (err) {
+      failed++;
+      console.error(`Twilio send to ${to} failed:`, err.code || err.message);
+    }
+  }));
+  return { sent, failed };
+}
+
 async function notifyRoles(roles, payload) {
   if (!roles.length) return;
   const placeholders = roles.map(() => '?').join(',');
@@ -100,7 +153,7 @@ function broadcast(type, payload) {
 
 function loadUser(req, _res, next) {
   if (req.session.userId) {
-    req.user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(req.session.userId) || null;
+    req.user = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(req.session.userId) || null;
     if (!req.user) req.session.destroy(() => {});
   }
   next();
@@ -119,7 +172,14 @@ function requireRole(...roles) {
 app.use(loadUser);
 
 function publicUser(u) {
-  return u ? { id: u.id, name: u.name, email: u.email, phone: u.phone || null, role: u.role } : null;
+  return u ? {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone || null,
+    role: u.role,
+    sms_alerts: u.sms_alerts ? 1 : 0
+  } : null;
 }
 
 /* ---------- Auth ---------- */
@@ -139,7 +199,7 @@ app.post('/api/signup', (req, res) => {
   const info = db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
     .run(name, email, phone || null, hash, role);
   req.session.userId = info.lastInsertRowid;
-  const user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(info.lastInsertRowid);
+  const user = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ user: publicUser(user) });
 });
 
@@ -211,7 +271,7 @@ app.get('/api/events', requireAuth, (req, res) => {
 /* ---------- Users (manager only) ---------- */
 app.get('/api/users', requireRole('manager'), (_req, res) => {
   const users = db.prepare(`
-    SELECT id, name, email, phone, role, created_at
+    SELECT id, name, email, phone, role, sms_alerts, created_at
     FROM users
     ORDER BY role ASC, name ASC
   `).all();
@@ -257,11 +317,14 @@ app.patch('/api/users/:id', requireRole('manager'), (req, res) => {
     if (req.body.password.length < 6) return res.status(400).json({ error: 'password_too_short' });
     updates.push('password_hash = ?'); values.push(bcrypt.hashSync(req.body.password, 10));
   }
+  if ('sms_alerts' in req.body) {
+    updates.push('sms_alerts = ?'); values.push(req.body.sms_alerts ? 1 : 0);
+  }
 
   if (!updates.length) return res.status(400).json({ error: 'no_changes' });
   values.push(id);
   db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-  const updated = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(id);
+  const updated = db.prepare('SELECT id, name, email, phone, role, sms_alerts FROM users WHERE id = ?').get(id);
   broadcast('user', { id });
   res.json({ user: publicUser(updated) });
 });
@@ -426,6 +489,13 @@ app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_adviso
       tag: `urgent-${updated.id}`,
       carId: updated.id
     }).catch(err => console.error('notifyRoles failed', err));
+
+    const catLabel = updated.category.replace('_', ' ');
+    const lane = updated.lane ? ` bay ${updated.lane}` : '';
+    sendSMS(
+      `🚨 URGENT — ${updated.stock_number} (${catLabel}${lane}) — flagged by ${req.user.name}`,
+      { excludeUserId: req.user.id }
+    ).catch(err => console.error('sendSMS failed', err));
   }
   res.json({ car: updated });
 });
@@ -471,6 +541,14 @@ app.post('/api/cars/:id/complete', requireRole('manager', 'recon'), (req, res) =
     .run(req.user.id, car.id);
   const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(car.id);
   broadcast('car', { id: updated.id, category: updated.category });
+
+  const catLabel = updated.category.replace('_', ' ');
+  const lane = updated.lane ? ` bay ${updated.lane}` : '';
+  sendSMS(
+    `✓ DONE — ${updated.stock_number} (${catLabel}${lane}) — finished by ${req.user.name}`,
+    { excludeUserId: req.user.id }
+  ).catch(err => console.error('sendSMS failed', err));
+
   res.json({ car: updated });
 });
 

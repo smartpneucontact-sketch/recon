@@ -422,6 +422,13 @@
           <input type="password" id="edit-password" autocomplete="new-password" minlength="6" placeholder="" />
           <small class="muted" data-i18n="users.passwordHint">Leave blank to keep the existing password.</small>
         </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="edit-sms-alerts" />
+          <span>
+            <strong data-i18n="users.smsAlerts">Receive SMS alerts</strong>
+            <small class="muted" data-i18n="users.smsAlertsHint">Sends a text when a job is flagged urgent or marked done.</small>
+          </span>
+        </label>
         <button type="submit" class="primary block big" data-i18n="users.save">Save</button>
         <p id="edit-user-error" class="error" hidden></p>
       </form>

@@ -712,6 +712,7 @@ function renderUserRow(u) {
         <span class="badge ${u.role}">${escapeHtml(i18n.t('role.' + u.role))}</span>
         <span class="user-row-contact">${escapeHtml(u.email)}</span>
         ${u.phone ? `<span class="user-row-contact">📞 ${escapeHtml(u.phone)}</span>` : ''}
+        ${u.sms_alerts ? `<span class="user-row-contact sms-on" title="${escapeAttr(i18n.t('users.smsAlerts'))}">📱 SMS</span>` : ''}
       </div>
     </div>
     <div class="user-actions">
@@ -745,6 +746,7 @@ function showEditUser(u) {
   document.getElementById('edit-name').value = u.name || '';
   document.getElementById('edit-email').value = u.email || '';
   document.getElementById('edit-phone').value = u.phone || '';
+  document.getElementById('edit-sms-alerts').checked = !!u.sms_alerts;
   const roleInput = document.querySelector(`input[name="edit-role"][value="${u.role}"]`);
   if (roleInput) roleInput.checked = true;
   const form = document.getElementById('edit-user-form');
@@ -757,7 +759,8 @@ function showEditUser(u) {
       name: document.getElementById('edit-name').value.trim(),
       email: document.getElementById('edit-email').value.trim(),
       phone: document.getElementById('edit-phone').value.trim(),
-      role: role ? role.value : u.role
+      role: role ? role.value : u.role,
+      sms_alerts: document.getElementById('edit-sms-alerts').checked
     };
     const newPwd = document.getElementById('edit-password').value;
     if (newPwd) body.password = newPwd;

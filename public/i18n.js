@@ -42,6 +42,8 @@ const I18N = {
     'users.lastManager': 'Cannot remove the last manager.',
     'users.cannotDeleteSelf': 'You cannot delete your own account.',
     'users.you': 'you',
+    'users.smsAlerts': 'Receive SMS alerts',
+    'users.smsAlertsHint': 'Sends a text when a job is flagged urgent or marked done.',
 
     'common.back': 'Back',
     'common.cancel': 'Cancel',
@@ -171,6 +173,8 @@ const I18N = {
     'users.lastManager': 'No se puede quitar al último gerente.',
     'users.cannotDeleteSelf': 'No puedes eliminar tu propia cuenta.',
     'users.you': 'tú',
+    'users.smsAlerts': 'Recibir avisos por SMS',
+    'users.smsAlertsHint': 'Envía un texto cuando un trabajo se marca urgente o terminado.',
 
     'common.back': 'Atrás',
     'common.cancel': 'Cancelar',

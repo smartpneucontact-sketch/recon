@@ -118,6 +118,9 @@ if (usersSchema && !/service_advisor/.test(usersSchema.sql)) {
 if (!columnExists('users', 'phone')) {
   db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
 }
+if (!columnExists('users', 'sms_alerts')) {
+  db.exec('ALTER TABLE users ADD COLUMN sms_alerts INTEGER NOT NULL DEFAULT 0');
+}
 if (!columnExists('cars', 'created_by_user_id')) {
   db.exec('ALTER TABLE cars ADD COLUMN created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
