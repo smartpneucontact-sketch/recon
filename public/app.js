@@ -32,7 +32,8 @@ const dialogCancel = document.getElementById('dialog-cancel');
 
 function showDialog(message, { okText, cancelText, danger, confirm } = {}) {
   return new Promise((resolve) => {
-    dialogMsg.textContent = message;
+    dialogMsg.textContent = message || '';
+    dialogMsg.hidden = !message;
     dialogOk.textContent = okText || (confirm ? i18n.t('common.confirm') : 'OK');
     dialogCancel.textContent = cancelText || i18n.t('common.cancel');
     dialogCancel.hidden = !confirm;
@@ -657,38 +658,26 @@ function showAddCar() {
   schedInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   schedInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00`;
 
-  // Auto-select the default bay when a category is picked.
-  // Delivery / Auction Trade / Wholesale Clean -> 120, Service -> 124.
-  // Manager can still override by tapping the other bay afterwards.
+  // Bay is derived from the category — no UI picker. Manager can reassign later via
+  // the segment control on the car detail page.
   const CATEGORY_TO_LANE = {
     delivery: '120',
     trade_auction: '120',
     service: '124',
     wholesale_clean: '124'
   };
-  form.querySelectorAll('input[name="category"]').forEach(input => {
-    input.addEventListener('change', () => {
-      const defaultLane = CATEGORY_TO_LANE[input.value];
-      if (!defaultLane) return;
-      const laneInput = form.querySelector(`input[name="lane"][value="${defaultLane}"]`);
-      if (laneInput) {
-        laneInput.checked = true;
-        laneInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.hidden = true;
     const stock_number = document.getElementById('stock-number').value.trim();
     const cat = form.querySelector('input[name="category"]:checked');
-    const lane = form.querySelector('input[name="lane"]:checked');
     const sched = schedInput.value;
     if (!stock_number) { err.textContent = i18n.t('addCar.stockRequired'); err.hidden = false; return; }
     if (!sched) { err.textContent = i18n.t('addCar.scheduleRequired'); err.hidden = false; return; }
-    if (!lane) { err.textContent = i18n.t('addCar.laneRequired'); err.hidden = false; return; }
     if (!cat) { err.textContent = i18n.t('addCar.categoryRequired'); err.hidden = false; return; }
+    const lane = CATEGORY_TO_LANE[cat.value];
+    if (!lane) { err.textContent = i18n.t('addCar.categoryRequired'); err.hidden = false; return; }
     let scheduled_at;
     try {
       scheduled_at = new Date(sched).toISOString();
@@ -696,7 +685,7 @@ function showAddCar() {
       err.textContent = i18n.t('addCar.scheduleInvalid'); err.hidden = false; return;
     }
     try {
-      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value, lane: lane.value, scheduled_at });
+      const { car } = await api('POST', '/api/cars', { stock_number, category: cat.value, lane, scheduled_at });
       showCarDetail(car.id);
     } catch (ex) {
       if (ex.status === 401) return showLogin();
@@ -920,7 +909,7 @@ async function showCarDetail(id) {
         completeBtn.hidden = false;
         showSticky = true;
         completeBtn.addEventListener('click', async () => {
-          if (!await showConfirm(i18n.t('detail.markDoneConfirm'), { okText: i18n.t('detail.markDone') })) return;
+          if (!await showConfirm('', { okText: i18n.t('detail.done') })) return;
           completeBtn.disabled = true;
           try {
             await api('POST', `/api/cars/${id}/complete`);
