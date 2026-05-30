@@ -12,6 +12,13 @@ const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const ROLES = ['manager', 'sales', 'service_advisor', 'recon'];
 const LANES = ['120', '124'];
+const CATEGORY_LABELS = {
+  delivery: 'Delivery',
+  trade_auction: 'Trade-In / Auction',
+  service: 'Service Wash',
+  wholesale_clean: 'Wholesale Clean'
+};
+const labelFor = (c) => CATEGORY_LABELS[c] || c.replace('_', ' ');
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const app = express();
@@ -586,13 +593,13 @@ app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_adviso
   if (urgent) {
     notifyRoles(['recon'], {
       title: `🚨 URGENT · ${updated.stock_number}`,
-      body: `${updated.category.replace('_', ' ').toUpperCase()} flagged urgent by ${req.user.name}`,
+      body: `${labelFor(updated.category)} flagged urgent by ${req.user.name}`,
       url: `/?car=${updated.id}`,
       tag: `urgent-${updated.id}`,
       carId: updated.id
     }).catch(err => console.error('notifyRoles failed', err));
 
-    const catLabel = updated.category.replace('_', ' ');
+    const catLabel = labelFor(updated.category);
     const lane = updated.lane ? ` bay ${updated.lane}` : '';
     const urgentBody = `Atlantic Subaru Recon: URGENT — ${updated.stock_number} (${catLabel}${lane}) flagged by ${req.user.name}.`;
     sendSMS(
@@ -647,7 +654,7 @@ app.post('/api/cars/:id/complete', requireRole('manager', 'recon'), (req, res) =
   const updated = db.prepare('SELECT * FROM cars WHERE id = ?').get(car.id);
   broadcast('car', { id: updated.id, category: updated.category });
 
-  const catLabel = updated.category.replace('_', ' ');
+  const catLabel = labelFor(updated.category);
   const lane = updated.lane ? ` bay ${updated.lane}` : '';
   const doneBody = `Atlantic Subaru Recon: DONE — ${updated.stock_number} (${catLabel}${lane}) finished by ${req.user.name}.`;
   sendSMS(

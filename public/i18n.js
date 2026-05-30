@@ -72,8 +72,8 @@ const I18N = {
     'filter.allCategories': 'All',
 
     'category.delivery': 'Delivery',
-    'category.trade_auction': 'Auction Trade',
-    'category.service': 'Service',
+    'category.trade_auction': 'Trade-In / Auction',
+    'category.service': 'Service Wash',
     'category.wholesale_clean': 'Wholesale Clean',
 
     'status.pending': 'Pending',
@@ -215,8 +215,8 @@ const I18N = {
     'filter.allCategories': 'Todas',
 
     'category.delivery': 'Entrega',
-    'category.trade_auction': 'Subasta',
-    'category.service': 'Servicio',
+    'category.trade_auction': 'Cambio / Subasta',
+    'category.service': 'Lavado de servicio',
     'category.wholesale_clean': 'Lavado mayorista',
 
     'status.pending': 'Pendiente',
