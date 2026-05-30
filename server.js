@@ -19,6 +19,12 @@ const CATEGORY_LABELS = {
   wholesale_clean: 'Wholesale Clean'
 };
 const labelFor = (c) => CATEGORY_LABELS[c] || c.replace('_', ' ');
+
+// Wholesale Clean always sorts after every other category in its lane, regardless of
+// scheduled time. We accomplish that by adding a huge constant to the rank on insert
+// (and via a one-time migration in db.js to bump existing rows). Manager drag still
+// wins because the midpoint computation lands in whatever range the neighbours occupy.
+const WHOLESALE_RANK_OFFSET = 1e15; // schedule timestamps are ~1.7e12, so + 1e15 puts wholesale far above
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const app = express();
@@ -507,7 +513,8 @@ app.post('/api/cars', requireRole('manager', 'sales', 'service_advisor'), (req, 
   if (!LANES.includes(lane)) {
     return res.status(400).json({ error: 'invalid_lane' });
   }
-  const queueRank = new Date(scheduled_at).getTime();
+  const baseRank = new Date(scheduled_at).getTime();
+  const queueRank = baseRank + (category === 'wholesale_clean' ? WHOLESALE_RANK_OFFSET : 0);
   const info = db.prepare(`
     INSERT INTO cars (stock_number, category, scheduled_at, lane, next_in_line, created_by_user_id)
     VALUES (?, ?, ?, ?, ?, ?)

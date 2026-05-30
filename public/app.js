@@ -663,8 +663,8 @@ function showAddCar() {
   const CATEGORY_TO_LANE = {
     delivery: '120',
     trade_auction: '120',
-    wholesale_clean: '120',
-    service: '124'
+    service: '124',
+    wholesale_clean: '124'
   };
   form.querySelectorAll('input[name="category"]').forEach(input => {
     input.addEventListener('change', () => {

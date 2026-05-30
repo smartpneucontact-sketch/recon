@@ -216,4 +216,19 @@ if (pending.length) {
   })();
 }
 
+// One-time migration: bump existing Wholesale Clean ranks so they sort after every
+// other category in their lane. Schedule-timestamps are around 1.7e12; adding 1e15
+// puts wholesale ranks ~3 orders of magnitude above the rest. Idempotent via meta key.
+if (!getMeta('wholesale_tier_v1')) {
+  const offset = 1e15;
+  db.prepare(`
+    UPDATE cars
+    SET next_in_line = next_in_line + ?
+    WHERE category = 'wholesale_clean'
+      AND status = 'pending'
+      AND (next_in_line IS NULL OR next_in_line < ?)
+  `).run(offset, offset);
+  setMeta('wholesale_tier_v1', '1');
+}
+
 module.exports = { db, DATA_DIR, UPLOADS_DIR, getMeta, setMeta };
