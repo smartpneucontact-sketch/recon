@@ -358,7 +358,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .cat-tile.delivery .cat-icon { color: #1d4ed8; }
 .cat-tile.trade_auction .cat-icon { color: #92400e; }
 .cat-tile.service .cat-icon { color: #166534; }
-.cat-tile.wholesale_clean .cat-icon { color: #0f766e; }
+.cat-tile.wholesale_clean .cat-icon { color: #ea580c; }
 
 .login { max-width: 420px; margin: 40px auto; }
 .login form { margin-top: 16px; }
@@ -529,7 +529,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .board-title.delivery { color: #1d4ed8; }
 .board-title.trade_auction { color: #92400e; }
 .board-title.service { color: #166534; }
-.board-title.wholesale_clean { color: #0f766e; }
+.board-title.wholesale_clean { color: #1a1d23; }
 .board-title.next { color: var(--primary); }
 
 .board-next {
@@ -668,7 +668,7 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .badge.delivery { background: #e7f0ff; color: #1d4ed8; border-color: #c7dbff; }
 .badge.trade_auction { background: #fff4e0; color: #92400e; border-color: #fde2b3; }
 .badge.service { background: #e8f7ec; color: #166534; border-color: #c8ebd2; }
-.badge.wholesale_clean { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; }
+.badge.wholesale_clean { background: #fed7aa; color: #1a1d23; border-color: #fb923c; }
 
 .status-pill {
   display: inline-flex;
