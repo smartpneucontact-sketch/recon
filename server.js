@@ -79,20 +79,56 @@ webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_FROM = process.env.TWILIO_FROM;
-const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM;  // e.g. 'whatsapp:+14155238886' (Sandbox) or your own approved sender
 let twilioClient = null;
-if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM) {
   try {
     twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-    if (TWILIO_FROM) console.log(`Twilio SMS enabled (from ${TWILIO_FROM})`);
-    else console.warn('TWILIO_FROM missing -- SMS sends will be disabled until set.');
-    if (TWILIO_WHATSAPP_FROM) console.log(`Twilio WhatsApp enabled (from ${TWILIO_WHATSAPP_FROM})`);
-    else console.warn('TWILIO_WHATSAPP_FROM missing -- WhatsApp sends will be disabled until set.');
+    console.log(`Twilio SMS enabled (from ${TWILIO_FROM})`);
   } catch (err) {
-    console.warn('Twilio init failed; SMS/WhatsApp disabled:', err.message);
+    console.warn('Twilio init failed; SMS disabled:', err.message);
   }
 } else {
-  console.warn('Twilio env vars missing (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN). SMS and WhatsApp notifications are disabled.');
+  console.warn('Twilio env vars missing (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM). SMS notifications are disabled.');
+}
+
+/* ---------- Meta WhatsApp Cloud API ---------- */
+const META_WHATSAPP_PHONE_ID = process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+const META_WHATSAPP_TOKEN = process.env.META_WHATSAPP_ACCESS_TOKEN;
+const META_WHATSAPP_VERSION = process.env.META_WHATSAPP_VERSION || 'v20.0';
+const whatsappEnabled = !!(META_WHATSAPP_PHONE_ID && META_WHATSAPP_TOKEN);
+if (whatsappEnabled) {
+  console.log(`Meta WhatsApp Cloud API enabled (phone-number id ${META_WHATSAPP_PHONE_ID}, API ${META_WHATSAPP_VERSION})`);
+} else {
+  console.warn('Meta WhatsApp env vars missing (META_WHATSAPP_PHONE_NUMBER_ID / META_WHATSAPP_ACCESS_TOKEN). WhatsApp notifications are disabled.');
+}
+
+// Direct call to Meta's Cloud API. Returns the parsed JSON on success, throws on
+// failure with err.status and err.code populated when Meta's error envelope is present.
+async function metaSendWhatsApp(toE164, body) {
+  const url = `https://graph.facebook.com/${META_WHATSAPP_VERSION}/${META_WHATSAPP_PHONE_ID}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${META_WHATSAPP_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toE164.replace(/^\+/, ''),   // Meta wants raw digits, no '+'
+      type: 'text',
+      text: { body, preview_url: false }
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error((data.error && data.error.message) || res.statusText);
+    err.status = res.status;
+    err.code = data.error && (data.error.code || data.error.type);
+    err.details = data.error || null;
+    throw err;
+  }
+  return data;
 }
 
 function normalizePhone(raw) {
@@ -136,7 +172,7 @@ async function sendSMS(message, { excludeUserId } = {}) {
 }
 
 async function sendWhatsApp(message, { excludeUserId } = {}) {
-  if (!twilioClient || !TWILIO_WHATSAPP_FROM) return { sent: 0, skipped: 0, reason: 'whatsapp_disabled' };
+  if (!whatsappEnabled) return { sent: 0, skipped: 0, reason: 'whatsapp_disabled' };
   const params = [];
   let sql = `
     SELECT id, name, phone FROM users
@@ -151,15 +187,11 @@ async function sendWhatsApp(message, { excludeUserId } = {}) {
     const e164 = normalizePhone(u.phone);
     if (!e164) { failed++; return; }
     try {
-      await twilioClient.messages.create({
-        from: TWILIO_WHATSAPP_FROM,
-        to: `whatsapp:${e164}`,
-        body: message
-      });
+      await metaSendWhatsApp(e164, message);
       sent++;
     } catch (err) {
       failed++;
-      console.error(`Twilio WhatsApp to ${e164} failed:`, err.code || err.message);
+      console.error(`Meta WhatsApp to ${e164} failed:`, err.code || err.status || err.message);
     }
   }));
   return { sent, failed };
@@ -428,19 +460,18 @@ app.post('/api/users/:id/whatsapp-test', requireRole('manager'), async (req, res
   const target = db.prepare('SELECT id, name, phone FROM users WHERE id = ?').get(id);
   if (!target) return res.status(404).json({ error: 'not_found' });
   if (!target.phone) return res.status(400).json({ error: 'no_phone' });
-  if (!twilioClient || !TWILIO_WHATSAPP_FROM) return res.status(503).json({ error: 'whatsapp_disabled' });
+  if (!whatsappEnabled) return res.status(503).json({ error: 'whatsapp_disabled' });
   const e164 = normalizePhone(target.phone);
   if (!e164) return res.status(400).json({ error: 'phone_invalid' });
   try {
-    const result = await twilioClient.messages.create({
-      from: TWILIO_WHATSAPP_FROM,
-      to: `whatsapp:${e164}`,
-      body: `Atlantic Subaru Recon: test WhatsApp message for ${target.name}. WhatsApp alerts are wired up correctly.`
-    });
-    res.json({ ok: true, sid: result.sid, to: e164 });
+    const result = await metaSendWhatsApp(
+      e164,
+      `Atlantic Subaru Recon: test WhatsApp message for ${target.name}. WhatsApp alerts are wired up correctly.`
+    );
+    res.json({ ok: true, message_id: result.messages && result.messages[0] && result.messages[0].id, to: e164 });
   } catch (err) {
-    console.error('WhatsApp test failed', err.code, err.message);
-    res.status(500).json({ error: 'twilio_error', code: err.code || null, message: err.message || 'unknown' });
+    console.error('Meta WhatsApp test failed', err.code, err.status, err.message);
+    res.status(500).json({ error: 'whatsapp_error', code: err.code || null, message: err.message || 'unknown', status: err.status || null });
   }
 });
 
