@@ -409,6 +409,49 @@ fieldset legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 
 #manager-actions { margin-bottom: 14px; }
 
+/* Dashboard search (manager / sales / service_advisor only) */
+.dashboard-search {
+  position: relative;
+  margin-bottom: 12px;
+}
+.dashboard-search input {
+  width: 100%;
+  padding: 12px 44px 12px 40px;
+  font-size: 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  -webkit-appearance: none;
+}
+.dashboard-search input::-webkit-search-decoration,
+.dashboard-search input::-webkit-search-cancel-button { display: none; }
+.dashboard-search .search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: none;
+  font-size: 14px;
+  color: var(--muted);
+}
+.search-clear:hover { background: var(--border); color: var(--text); }
+
 /* Boards layout: column count is set in JS via .boards-N.
    When both lanes AND categories are visible (boards-5 / boards-6) we slot a
    visual divider into a dedicated grid track between them. */

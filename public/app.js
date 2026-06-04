@@ -3,6 +3,8 @@ const state = {
   view: 'login',
   carId: null,
   filter: { status: 'pending' },
+  search: '',
+  cars: [],
   uploadOpen: false,
   liveSource: null,
   refreshTimer: null,
@@ -468,6 +470,25 @@ async function showDashboard() {
   const addBtn = document.getElementById('add-car-btn');
   if (addBtn) addBtn.addEventListener('click', showAddCar);
 
+  const searchInput = document.getElementById('dashboard-search');
+  const clearBtn = document.getElementById('dashboard-search-clear');
+  if (searchInput) {
+    searchInput.value = state.search;
+    clearBtn.hidden = !state.search;
+    searchInput.addEventListener('input', () => {
+      state.search = searchInput.value;
+      clearBtn.hidden = !state.search;
+      renderBoards();
+    });
+    clearBtn.addEventListener('click', () => {
+      state.search = '';
+      searchInput.value = '';
+      clearBtn.hidden = true;
+      renderBoards();
+      searchInput.focus();
+    });
+  }
+
   await loadCars();
 }
 
@@ -479,7 +500,8 @@ async function loadCars() {
     const params = new URLSearchParams();
     if (state.filter.status !== 'all') params.set('status', state.filter.status);
     const { cars } = await api('GET', `/api/cars?${params}`);
-    renderBoards(cars);
+    state.cars = cars;
+    renderBoards();
   } catch (ex) {
     if (ex.status === 401) return showLogin();
     document.querySelectorAll('[data-board-list]').forEach(el => {
@@ -488,7 +510,11 @@ async function loadCars() {
   }
 }
 
-function renderBoards(cars) {
+function renderBoards() {
+  const search = (state.search || '').trim().toLowerCase();
+  const cars = search
+    ? state.cars.filter(c => (c.stock_number || '').toLowerCase().includes(search))
+    : state.cars;
   if (state.sortables && state.sortables.length) {
     for (const s of state.sortables) { try { s.destroy(); } catch {} }
   }

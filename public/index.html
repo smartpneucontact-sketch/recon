@@ -151,6 +151,12 @@
 
   <template id="tpl-dashboard">
     <section class="dashboard">
+      <div class="dashboard-search role-gated" data-roles="manager,sales,service_advisor" hidden>
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="dashboard-search" autocomplete="off" data-i18n-placeholder="dashboard.searchPlaceholder" placeholder="Search by stock number…" />
+        <button type="button" id="dashboard-search-clear" class="search-clear" hidden aria-label="Clear search">✕</button>
+      </div>
+
       <div class="filters">
         <div class="seg" role="tablist" id="status-filter">
           <button data-status="pending" class="active" data-i18n="filter.pending">Pending</button>
