@@ -609,7 +609,7 @@ app.post('/api/cars/move', requireRole('manager'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/cars/:id/urgent', requireRole('manager', 'sales', 'service_advisor'), async (req, res) => {
+app.post('/api/cars/:id/urgent', requireRole('manager', 'service_advisor'), async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const car = db.prepare('SELECT * FROM cars WHERE id = ?').get(id);
   if (!car) return res.status(404).json({ error: 'not_found' });
